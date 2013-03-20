@@ -10,6 +10,7 @@ TOOLS =		memcheck \
 		lackey \
 		none \
 		helgrind \
+		fitin \
 		drd
 
 EXP_TOOLS = 	exp-sgcheck \
