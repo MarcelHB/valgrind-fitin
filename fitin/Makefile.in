@@ -21,6 +21,7 @@
 # Global stuff
 #----------------------------------------------------------------------------
 
+
 VPATH = @srcdir@
 am__make_dryrun = \
   { \
@@ -57,9 +58,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(top_srcdir)/Makefile.all.am $(top_srcdir)/Makefile.tool.am \
-	$(top_srcdir)/depcomp
+DIST_COMMON = $(pkginclude_HEADERS) $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in $(top_srcdir)/Makefile.all.am \
+	$(top_srcdir)/Makefile.tool.am $(top_srcdir)/depcomp
 
 # The Android toolchain includes all kinds of stdlib helpers present in
 # bionic which is bad because we are not linking with it and the Android
@@ -68,11 +69,11 @@ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 
 # On Android we must ask for non-executable stack, not sure why.
 @VGCONF_PLATFORMS_INCLUDE_ARM_LINUX_TRUE@@VGCONF_PLATVARIANT_IS_ANDROID_TRUE@am__append_2 = -Wl,-z,noexecstack
-noinst_PROGRAMS = exp-bbv-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT) \
+noinst_PROGRAMS = fitin-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT) \
 	$(am__EXEEXT_1)
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@am__append_3 = exp-bbv-@VGCONF_ARCH_SEC@-@VGCONF_OS@
-@VGCONF_HAVE_PLATFORM_SEC_FALSE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES =
-subdir = exp-bbv
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@am__append_3 = fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@
+@VGCONF_HAVE_PLATFORM_SEC_FALSE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES =
+subdir = fitin
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -81,20 +82,18 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@am__EXEEXT_1 = exp-bbv-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT)
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@am__EXEEXT_1 = fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
-am__objects_1 =  \
-	exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.$(OBJEXT)
-am_exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS = $(am__objects_1)
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS =  \
-	$(am_exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS)
-am__exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST = bbv_main.c
-am__objects_2 =  \
-	exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.$(OBJEXT)
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@am_exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
+am__objects_1 = fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.$(OBJEXT)
+am_fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS = $(am__objects_1)
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS =  \
+	$(am_fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS)
+am__fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST = fi_main.c
+am__objects_2 = fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.$(OBJEXT)
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@am_fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(am__objects_2)
-exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
-	$(am_exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS)
+fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
+	$(am_fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -103,10 +102,10 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES) \
-	$(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES)
-DIST_SOURCES = $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES) \
-	$(am__exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST)
+SOURCES = $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES) \
+	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES)
+DIST_SOURCES = $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES) \
+	$(am__fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-dvi-recursive install-exec-recursive \
@@ -119,6 +118,35 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
+am__install_max = 40
+am__nobase_strip_setup = \
+  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
+am__nobase_strip = \
+  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
+am__nobase_list = $(am__nobase_strip_setup); \
+  for p in $$list; do echo "$$p $$p"; done | \
+  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
+  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
+    if (++n[$$2] == $(am__install_max)) \
+      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
+    END { for (dir in files) print dir, files[dir] }'
+am__base_list = \
+  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
+  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
+am__uninstall_files_from_dir = { \
+  test -z "$$files" \
+    || { test ! -d "$$dir" && test ! -f "$$dir" && test ! -r "$$dir"; } \
+    || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
+         $(am__cd) "$$dir" && rm -f $$files; }; \
+  }
+am__installdirs = "$(DESTDIR)$(pkgincludedir)"
+HEADERS = $(pkginclude_HEADERS)
 RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
@@ -554,57 +582,58 @@ LIBREPLACEMALLOC_LDFLAGS_MIPS32_LINUX = \
 	$(LIBREPLACEMALLOC_MIPS32_LINUX) \
 	-Wl,--no-whole-archive
 
-EXTRA_DIST = docs/bbv-manual.xml
-BBV_SOURCES_COMMON = bbv_main.c
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES = \
-	$(BBV_SOURCES_COMMON)
+EXTRA_DIST = docs/fi-manual.xml
+pkginclude_HEADERS = fitin.h
+FITIN_SOURCES_COMMON = fi_main.c
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES = \
+	$(FITIN_SOURCES_COMMON)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS = \
 	$(AM_CPPFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS = \
 	$(AM_CFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES = \
 	$(TOOL_DEPENDENCIES_@VGCONF_PLATFORM_PRI_CAPS@)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD = \
 	$(TOOL_LDADD_@VGCONF_PLATFORM_PRI_CAPS@)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS = \
 	$(TOOL_LDFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK = \
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK = \
 	$(top_builddir)/coregrind/link_tool_exe_@VGCONF_OS@ \
 	@VALT_LOAD_ADDRESS_PRI@ \
 	$(LINK) \
-	$(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) \
-	$(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS)
+	$(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) \
+	$(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES = \
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(BBV_SOURCES_COMMON)
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(FITIN_SOURCES_COMMON)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(AM_CPPFLAGS_@VGCONF_PLATFORM_SEC_CAPS@)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(AM_CFLAGS_@VGCONF_PLATFORM_SEC_CAPS@)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(TOOL_DEPENDENCIES_@VGCONF_PLATFORM_SEC_CAPS@)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDADD = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDADD = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(TOOL_LDADD_@VGCONF_PLATFORM_SEC_CAPS@)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDFLAGS = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDFLAGS = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(TOOL_LDFLAGS_@VGCONF_PLATFORM_SEC_CAPS@)
 
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LINK = \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LINK = \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(top_builddir)/coregrind/link_tool_exe_@VGCONF_OS@ \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	@VALT_LOAD_ADDRESS_SEC@ \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(LINK) \
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) \
-@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDFLAGS)
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) \
+@VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDFLAGS)
 
 all: all-recursive
 
@@ -619,9 +648,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign exp-bbv/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign fitin/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign exp-bbv/Makefile
+	  $(AUTOMAKE) --foreign fitin/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -644,12 +673,12 @@ $(am__aclocal_m4_deps):
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
-exp-bbv-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT): $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES) $(EXTRA_exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES) 
-	@rm -f exp-bbv-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT)
-	$(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD) $(LIBS)
-exp-bbv-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT): $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES) $(EXTRA_exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES) 
-	@rm -f exp-bbv-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT)
-	$(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LINK) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDADD) $(LIBS)
+fitin-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT): $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES) $(EXTRA_fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES) 
+	@rm -f fitin-@VGCONF_ARCH_PRI@-@VGCONF_OS@$(EXEEXT)
+	$(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD) $(LIBS)
+fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT): $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES) $(EXTRA_fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_DEPENDENCIES) 
+	@rm -f fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT)
+	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LINK) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -657,8 +686,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -674,33 +703,54 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.o: bbv_main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.o -MD -MP -MF $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Tpo -c -o exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.o `test -f 'bbv_main.c' || echo '$(srcdir)/'`bbv_main.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Tpo $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bbv_main.c' object='exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.o' libtool=no @AMDEPBACKSLASH@
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.o: fi_main.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.o -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Tpo -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.o `test -f 'fi_main.c' || echo '$(srcdir)/'`fi_main.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_main.c' object='fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.o `test -f 'bbv_main.c' || echo '$(srcdir)/'`bbv_main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.o `test -f 'fi_main.c' || echo '$(srcdir)/'`fi_main.c
 
-exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.obj: bbv_main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.obj -MD -MP -MF $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Tpo -c -o exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.obj `if test -f 'bbv_main.c'; then $(CYGPATH_W) 'bbv_main.c'; else $(CYGPATH_W) '$(srcdir)/bbv_main.c'; fi`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Tpo $(DEPDIR)/exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bbv_main.c' object='exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.obj' libtool=no @AMDEPBACKSLASH@
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj: fi_main.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Tpo -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_main.c' object='fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o exp_bbv_@VGCONF_ARCH_PRI@_@VGCONF_OS@-bbv_main.obj `if test -f 'bbv_main.c'; then $(CYGPATH_W) 'bbv_main.c'; else $(CYGPATH_W) '$(srcdir)/bbv_main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
 
-exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.o: bbv_main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.o -MD -MP -MF $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Tpo -c -o exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.o `test -f 'bbv_main.c' || echo '$(srcdir)/'`bbv_main.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Tpo $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bbv_main.c' object='exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.o' libtool=no @AMDEPBACKSLASH@
+fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o: fi_main.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o `test -f 'fi_main.c' || echo '$(srcdir)/'`fi_main.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_main.c' object='fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.o `test -f 'bbv_main.c' || echo '$(srcdir)/'`bbv_main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o `test -f 'fi_main.c' || echo '$(srcdir)/'`fi_main.c
 
-exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.obj: bbv_main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.obj -MD -MP -MF $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Tpo -c -o exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.obj `if test -f 'bbv_main.c'; then $(CYGPATH_W) 'bbv_main.c'; else $(CYGPATH_W) '$(srcdir)/bbv_main.c'; fi`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Tpo $(DEPDIR)/exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='bbv_main.c' object='exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.obj' libtool=no @AMDEPBACKSLASH@
+fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj: fi_main.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_main.c' object='fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o exp_bbv_@VGCONF_ARCH_SEC@_@VGCONF_OS@-bbv_main.obj `if test -f 'bbv_main.c'; then $(CYGPATH_W) 'bbv_main.c'; else $(CYGPATH_W) '$(srcdir)/bbv_main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
+install-pkgincludeHEADERS: $(pkginclude_HEADERS)
+	@$(NORMAL_INSTALL)
+	@list='$(pkginclude_HEADERS)'; test -n "$(pkgincludedir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgincludedir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(pkgincludedir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_HEADER) $$files '$(DESTDIR)$(pkgincludedir)'"; \
+	  $(INSTALL_HEADER) $$files "$(DESTDIR)$(pkgincludedir)" || exit $$?; \
+	done
+
+uninstall-pkgincludeHEADERS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(pkginclude_HEADERS)'; test -n "$(pkgincludedir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(pkgincludedir)'; $(am__uninstall_files_from_dir)
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run 'make' without going through this Makefile.
@@ -885,9 +935,12 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-recursive
-all-am: Makefile $(PROGRAMS) all-local
+all-am: Makefile $(PROGRAMS) $(HEADERS) all-local
 installdirs: installdirs-recursive
 installdirs-am:
+	for dir in "$(DESTDIR)$(pkgincludedir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
 install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
@@ -941,7 +994,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am:
+install-data-am: install-pkgincludeHEADERS
 
 install-dvi: install-dvi-recursive
 
@@ -986,7 +1039,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am:
+uninstall-am: uninstall-pkgincludeHEADERS
 
 .MAKE: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) \
 	cscopelist-recursive ctags-recursive install-am install-strip \
@@ -1001,11 +1054,12 @@ uninstall-am:
 	install-data install-data-am install-dvi install-dvi-am \
 	install-exec install-exec-am install-exec-local install-html \
 	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
-	ps ps-am tags tags-recursive uninstall uninstall-am
+	install-pdf install-pdf-am install-pkgincludeHEADERS \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic pdf pdf-am ps ps-am tags tags-recursive \
+	uninstall uninstall-am uninstall-pkgincludeHEADERS
 
 
 # This used to be required when Vex had a handwritten Makefile.  It
