@@ -32,7 +32,7 @@
 /* #undef GLIBC_2_10 */
 
 /* Define to 1 if you're using glibc 2.11.x */
-#define GLIBC_2_11 1
+/* #undef GLIBC_2_11 */
 
 /* Define to 1 if you're using glibc 2.12.x */
 /* #undef GLIBC_2_12 */
@@ -47,7 +47,7 @@
 /* #undef GLIBC_2_15 */
 
 /* Define to 1 if you're using glibc 2.16.x */
-/* #undef GLIBC_2_16 */
+#define GLIBC_2_16 1
 
 /* Define to 1 if you're using glibc 2.2.x */
 /* #undef GLIBC_2_2 */
@@ -88,7 +88,7 @@
 
 /* Define to 1 if g++ supports __sync_bool_compare_and_swap() and
    __sync_add_and_fetch() */
-#define HAVE_BUILTIN_ATOMIC_CXX 1
+/* #undef HAVE_BUILTIN_ATOMIC_CXX */
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
@@ -154,10 +154,10 @@
 #define HAVE_PPOLL 1
 
 /* Define to 1 if you have the `process_vm_readv' function. */
-/* #undef HAVE_PROCESS_VM_READV */
+#define HAVE_PROCESS_VM_READV 1
 
 /* Define to 1 if you have the `process_vm_writev' function. */
-/* #undef HAVE_PROCESS_VM_WRITEV */
+#define HAVE_PROCESS_VM_WRITEV 1
 
 /* Define to 1 if you have the `pthread_barrier_init' function. */
 #define HAVE_PTHREAD_BARRIER_INIT 1
@@ -166,7 +166,7 @@
 #define HAVE_PTHREAD_CONDATTR_SETCLOCK 1
 
 /* Define to 1 if you have the `pthread_create@glibc2.0' function. */
-/* #undef HAVE_PTHREAD_CREATE_GLIBC_2_0 */
+#define HAVE_PTHREAD_CREATE_GLIBC_2_0 1
 
 /* Define to 1 if you have the `PTHREAD_MUTEX_ADAPTIVE_NP' constant. */
 #define HAVE_PTHREAD_MUTEX_ADAPTIVE_NP 1
