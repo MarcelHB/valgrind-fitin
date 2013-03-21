@@ -1,8 +1,17 @@
 autom4te.cache/
+.in_place/
 Makefile
+*-x86-linux
+*.o
+*.a
+*.so
 *.log
 *.pc
 *.deps/
+bin/
+lib/
+share/
+include/valgrind/
 cachegrind/cg_annotate
 cachegrind/cg_diff
 callgrind/callgrind_annotate
@@ -14,4 +23,9 @@ drd/scripts/download-and-build-splash2
 glibc-2.X.supp
 massif/ms_print
 stamp-h1
+default.supp
+auxprogs/valgrind-listener
+cachegrind/cg_merge
+coregrind/valgrind
+coregrind/vgdb
 
