@@ -4,6 +4,7 @@ Makefile
 *-x86-linux
 *.o
 *.a
+*.s
 *.so
 *.log
 *.pc
