@@ -88,7 +88,7 @@
 
 /* Define to 1 if g++ supports __sync_bool_compare_and_swap() and
    __sync_add_and_fetch() */
-/* #undef HAVE_BUILTIN_ATOMIC_CXX */
+#define HAVE_BUILTIN_ATOMIC_CXX 1
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
@@ -212,7 +212,7 @@
 #define HAVE_SEMTIMEDOP 1
 
 /* Define to 1 if libstd++ supports annotating shared pointers */
-/* #undef HAVE_SHARED_POINTER_ANNOTATION */
+#define HAVE_SHARED_POINTER_ANNOTATION 1
 
 /* Define to 1 if you have the `signalfd' function. */
 #define HAVE_SIGNALFD 1

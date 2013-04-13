@@ -43,6 +43,13 @@
 #include "libvex_guest_amd64.h"
 
 #include "fitin.h"
+#include "fi_reg.h"
+
+#if __x86_64__
+#define SIZE_SUFFIX(n) n ## 64
+#else
+#define SIZE_SUFFIX(n) n ## 32
+#endif
 
 static const unsigned int MAX_STR_SIZE = 512;
 static enum exitValues {
@@ -202,8 +209,7 @@ static inline Bool instInInclude(Addr instAddr, char *incl) {
     //check whether the dirname begins like the content of incl
     //TODO: Is there a better way than comparing strings?
     retval =  !VG_(strncmp)(dirname, incl, VG_(strlen)(incl));
-    //if(retval)
-    //	VG_(printf)("%s/%s\n", dirname, filename);
+
     return retval;
 
 }
@@ -229,7 +235,6 @@ static inline void incrInst() {
     tData.instCnt++;
     if(tData.instLmt && tData.instCnt >= tData.instLmt) {
         fi_fini(EXIT_STOPPED);
-        //tl_assert(0);
         VG_(exit)(0);
     }
 
@@ -282,21 +287,33 @@ static void fi_print_debug_usage(void) {
 static void fi_post_clo_init(void) {
 }
 
-/*
-   preLoadHelper
-   This dirty helper function is inserted before every Load expression.
-   It counts the overall Load expressions, the load operations of the monitorables,
-   and might eventually modify the associated memory.
-*/
-static
-void VEX_REGPARM(3) preLoadHelper(toolData *td, Addr dataAddr, SizeT memSize) {
+/**
+ *  preLoadHelper
+ *  This dirty helper function is inserted before every Load expression.
+ *  It counts the overall Load expressions, the load operations of the monitorables,
+ *  and might eventually modify the associated memory.
+ *
+ *  The returned value indicates whether the loaded address is revelant for variable
+ *  tracing.
+ */
+static UWord VEX_REGPARM(3) preLoadHelper(toolData *td, 
+                                          Addr dataAddr,
+                                          SizeT memSize) {
+    UWord relevant = 0;
+
     tl_assert(td != NULL && memSize > 0);
-    //Always increment all overall load operations
+    // Always increment all overall load operations
     td->loads++;
+
+    // FITIn-reg: no more injections to do
+    if(td->injections != 0) {
+        return 0;
+    }
 
     Monitorable key;
     Word first, last;
     key.monAddr = dataAddr;
+
     if(VG_(clo_verbosity) > 1) {
         VG_(printf)("Load: 0x%08x; size: 0x%08x; data: 0x%08x\n", dataAddr, memSize, *((unsigned long *) dataAddr));
     }
@@ -315,15 +332,14 @@ void VEX_REGPARM(3) preLoadHelper(toolData *td, Addr dataAddr, SizeT memSize) {
                 continue;
             }
 
+            relevant = 1;
+
             // if the monitorable is valid
             mon->monLoads++;
             tData.monLoadCnt++;
 
-//			VG_(printf)("TestModded! load: %d;bit: %d, it:%d\n", mon->monLoads, mon->modBit, mon->modIteration);
-            if(!td->goldenRun
-//					&& (mon->monLoads == mon->modIteration || tData.modMemLoadTime == tData.loads)
-                    &&  tData.modMemLoadTime == tData.monLoadCnt
-                    && td->injections == 0) {
+            if(!td->goldenRun &&
+                tData.modMemLoadTime == tData.monLoadCnt) {
                 // Bring the mod bit to the valid bounds
                 UChar numOfBits = memSize << 3; // memSize * 8
                 UChar realModBit = mon->modBit % numOfBits;
@@ -331,6 +347,7 @@ void VEX_REGPARM(3) preLoadHelper(toolData *td, Addr dataAddr, SizeT memSize) {
                 UChar *modPtr = (UChar *) ( mon->monAddr  + realModByte);
                 *modPtr ^= (1 << (realModBit % 8));
                 td->injections++;
+
                 if(VG_(clo_verbosity) > 1) {
                     VG_(printf)("Modded! monAddr:    0x%016lX\n", mon->monAddr);
                     VG_(printf)("        monSize:    %d\n", mon->monSize);
@@ -338,28 +355,34 @@ void VEX_REGPARM(3) preLoadHelper(toolData *td, Addr dataAddr, SizeT memSize) {
                     VG_(printf)("        modPtr:     0x%016lX\n", modPtr);
                     VG_(printf)("        realModBit: %d\n", realModBit);
                 }
+
+                // FITIn-reg: there is no need to continue                 
+                return 0;
             }
         }
     }
+
+    return relevant;
 }
 
-/* Instrumentation of every LoadExpression.
-   The traversion of the statement exprssion tree probably not necessary in this detail
-   */
-static void instrumentLoadExpr(toolData *td, IRExpr *expr, IRSB *sbOut) {
+/** 
+ * Instrumentation of every LoadExpression.
+ * The traversion of the statement exprssion tree probably not necessary in this detail
+ *
+ * The returned value is a pair of a load marker and the corresponding trace flag.
+ */
+static IRTemp* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     if(td == NULL || expr == NULL || sbOut == NULL) {
         VG_(printf)("Couldn't instrument LD: td: 0x%08x, expr: 0x%08x, sbOut: 0x%08x\n", td,  expr, sbOut);
-        return;
+        return NULL;
     }
 
-    tl_assert(td != NULL && expr != NULL && sbOut != NULL);
-
     if (expr->tag == Iex_Load) {
-
         IRDirty *di;
         IRExpr **args;
         IRStmt *st;
-
+  
+        // FITIn-reg, TODO: check Load.addr for RdTmp
         Int memSize = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_3(mkIRExpr_HWord(td),
                              expr->Iex.Load.addr,
@@ -369,15 +392,21 @@ static void instrumentLoadExpr(toolData *td, IRExpr *expr, IRSB *sbOut) {
         di->mAddr = expr->Iex.Load.addr;
         di->mSize = memSize;
         di->mFx = Ifx_Modify;
+        // FITIn-reg: indicates the need for further tracing
+        di->tmp = newIRTemp(sbOut->tyenv, SIZE_SUFFIX(Ity_I));
 
         st = IRStmt_Dirty(di);
-
         addStmtToIRSB(sbOut, st);
+
         if(VG_(clo_verbosity) > 1) {
             ppIRStmt(st);
             VG_(printf)("\n");
             VG_(printf)("Load instrumented: instAddr: 0x%08x\n", td->instAddr);
         }
+
+        return &(di->tmp);
+    } else {
+        return NULL;
     }
 }
 
@@ -392,10 +421,16 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
+    XArray *load_list = NULL, *replace_list = NULL;
+
+    /* We don't currently support this case. */
     if (gWordTy != hWordTy) {
-        /* We don't currently support this case. */
         VG_(tool_panic)("host/guest word size mismatch");
     }
+
+    // FITIn-reg, TODO: create proper free methods
+    load_list = VG_(newXA)(VG_(malloc), "fi.reg.load.list", VG_(free), sizeof(LoadData*)); 
+    replace_list = VG_(newXA)(VG_(malloc), "fi.reg.replace.list", VG_(free), sizeof(ReplaceData*)); 
 
     /* Set up SB */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -408,6 +443,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     }
 
     for (/*use current i*/; i < sbIn->stmts_used; i++) {
+        Bool skip_original = False;
+
         st = sbIn->stmts[i];
 
         if (!st || st->tag == Ist_NoOp) {
@@ -421,49 +458,112 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
             argv = mkIRExprVec_0();
             di = unsafeIRDirty_0_N ( 0, "incrInst", VG_(fnptr_to_fnentry)(&incrInst), argv);
             addStmtToIRSB(sbOut, IRStmt_Dirty(di));
-
         }
 
         // Instrument IRExpressions. Look for loads in the hierarchy and instrument them.
         if(tData.monitoredInst) {
             switch (st->tag) {
-                case Ist_IMark: // already handled before
-                case Ist_NoOp:
                 case Ist_AbiHint:
                 case Ist_MBE:
                     break;
                 case Ist_Put:
-                    instrumentLoadExpr(&tData, st->Ist.Put.data, sbOut);
+                    // FITIn-reg, TODO: allow tracing on explicit PUT
+                    instrument_load(&tData, st->Ist.Put.data, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.Put.data, sbOut)
+                    );
                     break;
                 case Ist_PutI:
-                    instrumentLoadExpr(&tData, st->Ist.PutI.details->ix, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.PutI.details->data, sbOut);
+                    instrument_load(&tData, st->Ist.PutI.details->ix, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.PutI.details->ix, sbOut)
+                    );
+
+                    instrument_load(&tData, st->Ist.PutI.details->data, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.PutI.details->data, sbOut)
+                    );
                     break;
-                case Ist_WrTmp:
-                    instrumentLoadExpr(&tData, st->Ist.WrTmp.data, sbOut);
+                case Ist_WrTmp: {
+                    IRTemp *state_temp = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
+
+                    if(state_temp != NULL) {
+                        fi_reg_add_temp_load(load_list, &(st->Ist.WrTmp.tmp), state_temp);
+                    }
+
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.WrTmp.data, sbOut)
+                    );
                     break;
+                }
                 case Ist_Store:
-                    instrumentLoadExpr(&tData, st->Ist.Store.addr, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.Store.data, sbOut);
+                    instrument_load(&tData, st->Ist.Store.addr, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.Store.addr, sbOut)
+                    );
+
+                    instrument_load(&tData, st->Ist.Store.data, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.Store.data, sbOut)
+                    );
                     break;
                 case Ist_Dirty:
                     //FIXME: handle IRDirty Statements
                     break;
                 case Ist_CAS:
-                    instrumentLoadExpr(&tData, st->Ist.CAS.details->addr, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.CAS.details->expdLo, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.CAS.details->expdHi, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.CAS.details->dataLo, sbOut);
-                    instrumentLoadExpr(&tData, st->Ist.CAS.details->dataHi, sbOut);
+                    instrument_load(&tData, st->Ist.CAS.details->addr, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.CAS.details->addr, sbOut)
+                    );
+                    instrument_load(&tData, st->Ist.CAS.details->expdLo, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.CAS.details->expdLo, sbOut)
+                    );
+                    instrument_load(&tData, st->Ist.CAS.details->expdHi, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.CAS.details->expdHi, sbOut)
+                    );
+                    instrument_load(&tData, st->Ist.CAS.details->dataLo, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.CAS.details->dataLo, sbOut)
+                    );
+                    instrument_load(&tData, st->Ist.CAS.details->dataHi, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.CAS.details->dataHi, sbOut)
+                    );
                     break;
                 case Ist_LLSC:
-                    instrumentLoadExpr(&tData, st->Ist.LLSC.addr, sbOut);
+                    instrument_load(&tData, st->Ist.LLSC.addr, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.LLSC.addr, sbOut)
+                    );
+
                     if(st->Ist.LLSC.storedata != NULL) {
-                        instrumentLoadExpr(&tData, st->Ist.LLSC.storedata, sbOut);
+                        instrument_load(&tData, st->Ist.LLSC.storedata, sbOut);
+                        skip_original |= fi_reg_add_replacements(
+                            replace_list,
+                            fi_reg_instrument_access(load_list, st->Ist.LLSC.storedata, sbOut)
+                        );
                     }
                     break;
                 case Ist_Exit:
-                    instrumentLoadExpr(&tData, st->Ist.Exit.guard, sbOut);
+                    instrument_load(&tData, st->Ist.Exit.guard, sbOut);
+                    skip_original |= fi_reg_add_replacements(
+                        replace_list,
+                        fi_reg_instrument_access(load_list, st->Ist.Exit.guard, sbOut)
+                    );
                     break;
                 default:
                     tl_assert(0);
@@ -475,9 +575,17 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 VG_(printf)("\n");
             }
         }
-        // Always add the instruction. We don't want to modify the original code.
-        addStmtToIRSB( sbOut, st );
+
+        // FITIn-reg: for reasons of speed, some statements have been replaced
+        // already
+        if(!skip_original) {
+            addStmtToIRSB(sbOut, st);
+        }
     }
+
+    VG_(deleteXA)(replace_list);
+    VG_(deleteXA)(load_list);
+
     return sbOut;
 }
 
