@@ -2,7 +2,7 @@ include $(top_srcdir)/Makefile.tool.am
 
 EXTRA_DIST = docs/fi-manual.xml
 
-pkginclude_HEADERS = fitin.h
+pkginclude_HEADERS = fitin.h fi_reg.h
 
 #----------------------------------------------------------------------------
 # fitin-<platform>
@@ -13,7 +13,7 @@ if VGCONF_HAVE_PLATFORM_SEC
 noinst_PROGRAMS += fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@
 endif
 
-FITIN_SOURCES_COMMON = fi_main.c
+FITIN_SOURCES_COMMON = fi_main.c fi_reg.c
 
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES      = \
 	$(FITIN_SOURCES_COMMON)

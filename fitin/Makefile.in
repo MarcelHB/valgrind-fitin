@@ -84,12 +84,15 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@am__EXEEXT_1 = fitin-@VGCONF_ARCH_SEC@-@VGCONF_OS@$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
-am__objects_1 = fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.$(OBJEXT)
+am__objects_1 = fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.$(OBJEXT) \
+	fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.$(OBJEXT)
 am_fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS = $(am__objects_1)
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS =  \
 	$(am_fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_OBJECTS)
-am__fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST = fi_main.c
-am__objects_2 = fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.$(OBJEXT)
+am__fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_SOURCES_DIST = fi_main.c \
+	fi_reg.c
+am__objects_2 = fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.$(OBJEXT) \
+	fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.$(OBJEXT)
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@am_fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
 @VGCONF_HAVE_PLATFORM_SEC_TRUE@	$(am__objects_2)
 fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_OBJECTS =  \
@@ -583,8 +586,8 @@ LIBREPLACEMALLOC_LDFLAGS_MIPS32_LINUX = \
 	-Wl,--no-whole-archive
 
 EXTRA_DIST = docs/fi-manual.xml
-pkginclude_HEADERS = fitin.h
-FITIN_SOURCES_COMMON = fi_main.c
+pkginclude_HEADERS = fitin.h fi_reg.h
+FITIN_SOURCES_COMMON = fi_main.c fi_reg.c
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES = \
 	$(FITIN_SOURCES_COMMON)
 
@@ -687,7 +690,9 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -717,6 +722,20 @@ fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj: fi_main.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
 
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.o: fi_reg.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.o -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Tpo -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.o `test -f 'fi_reg.c' || echo '$(srcdir)/'`fi_reg.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_reg.c' object='fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.o `test -f 'fi_reg.c' || echo '$(srcdir)/'`fi_reg.c
+
+fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.obj: fi_reg.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.obj -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Tpo -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.obj `if test -f 'fi_reg.c'; then $(CYGPATH_W) 'fi_reg.c'; else $(CYGPATH_W) '$(srcdir)/fi_reg.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_reg.c' object='fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@-fi_reg.obj `if test -f 'fi_reg.c'; then $(CYGPATH_W) 'fi_reg.c'; else $(CYGPATH_W) '$(srcdir)/fi_reg.c'; fi`
+
 fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o: fi_main.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.o `test -f 'fi_main.c' || echo '$(srcdir)/'`fi_main.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.Po
@@ -730,6 +749,20 @@ fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj: fi_main.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_main.c' object='fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_main.obj `if test -f 'fi_main.c'; then $(CYGPATH_W) 'fi_main.c'; else $(CYGPATH_W) '$(srcdir)/fi_main.c'; fi`
+
+fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.o: fi_reg.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.o -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Tpo -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.o `test -f 'fi_reg.c' || echo '$(srcdir)/'`fi_reg.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_reg.c' object='fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.o `test -f 'fi_reg.c' || echo '$(srcdir)/'`fi_reg.c
+
+fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.obj: fi_reg.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -MT fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.obj -MD -MP -MF $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Tpo -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.obj `if test -f 'fi_reg.c'; then $(CYGPATH_W) 'fi_reg.c'; else $(CYGPATH_W) '$(srcdir)/fi_reg.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Tpo $(DEPDIR)/fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fi_reg.c' object='fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CPPFLAGS) $(CPPFLAGS) $(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) $(CFLAGS) -c -o fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@-fi_reg.obj `if test -f 'fi_reg.c'; then $(CYGPATH_W) 'fi_reg.c'; else $(CYGPATH_W) '$(srcdir)/fi_reg.c'; fi`
 install-pkgincludeHEADERS: $(pkginclude_HEADERS)
 	@$(NORMAL_INSTALL)
 	@list='$(pkginclude_HEADERS)'; test -n "$(pkgincludedir)" || list=; \
