@@ -8,6 +8,8 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_xarray.h"
 
+#include "fitin.h"
+
 #if __x86_64__
 #define SIZE_SUFFIX(n) n ## 64
 #else
@@ -15,19 +17,25 @@
 #endif
 
 typedef struct {
-    IRTemp *dest_temp;
-    IRTemp *state_temp;
+    IRTemp dest_temp;
+    IRTemp state_temp;
 } LoadData;
 
 typedef struct {
-    IRTemp *old_temp;
-    IRTemp *new_temp;
+    IRTemp old_temp;
+    IRTemp new_temp;
 } ReplaceData;
 
-void fi_reg_add_temp_load(XArray *list, IRTemp *dest, IRTemp *state);
+void fi_reg_add_temp_load(XArray *list, IRTemp dest, IRTemp state);
 
-Bool fi_reg_add_replacements(XArray *list, XArray *replacements); 
+Int fi_reg_compare_loads(void *l1, void *l2);
 
-XArray* fi_reg_instrument_access(XArray *loads, IRExpr *expr, IRSB *sb);
+Int fi_reg_compare_replacements(void *l1, void *l2);
+
+void fi_reg_instrument_access(toolData *tool_data,
+                              XArray *loads,
+                              XArray *replacements,
+                              IRExpr *expr,
+                              IRSB *sb);
 
 #endif

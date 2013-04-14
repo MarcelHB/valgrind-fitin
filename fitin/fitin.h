@@ -2,6 +2,8 @@
 #define __FITIN_H
 
 #include "valgrind.h"
+#include "pub_tool_basics.h"
+#include "pub_tool_xarray.h"
 
 typedef
 	enum {
@@ -16,6 +18,50 @@ typedef
 		VG_USERREQ__CINJ_B_VAR,
 		
 	} Vg_FITInClientRequest;
+
+/* In order to monitor only a subset of the called functions we need filter
+   the correct instructions. This can be done in various ways. I.e. the
+   functions may be filtered by function name.
+ */
+typedef enum {
+    //Filter single function
+    MT_FILTFUNC,
+    //Filter by given include path
+    MT_FILTINCL
+    //FIXME: Not used yet
+    //Filter a given function and all functions called from it
+    //MT_FILTFUNCABOVE
+} filterType;
+
+// This is a data structure to store tool specific data.
+typedef struct _toolData {
+    // This is the current intruction Address during the 'static' analysis.
+    Addr instAddr;
+    // States, whether the current instruction is monitored ('static' analysis).
+    Bool monitoredInst;
+    // Counter for memory loads.
+    ULong loads;
+    // A filtertype for the monitorable instructions.
+    filterType filter;
+    // If filtertype is MT_FILTFUNC this is the function name to be filtered by.
+    Char *filtstr;
+    // Executed instructions counter
+    ULong instCnt;
+    // Instruction limit
+    ULong instLmt;
+    // The count when the memory will be modified. TODO: check the upper bound of the golden run?
+    ULong modMemLoadTime;
+    // Bit which will be modified.
+    UChar modBit;
+    // Faults injected
+    UChar injections;
+    // States if this is the golden run. No memory modifies should be made during the golden run.
+    Bool goldenRun;
+    // Monitorables
+    XArray *monitorables;
+    // Counter for overall monitored loads
+    ULong monLoadCnt;
+} toolData;
 
 /*
    Monitor the given variable for FITIn handling
