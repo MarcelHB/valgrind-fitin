@@ -368,8 +368,8 @@ static IRTemp instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 
 #define INSTRUMENT_LOAD_AND_ACCESS(expr) instrument_load(&tData, (expr), sbOut); \
                                          fi_reg_instrument_access(&tData, \
-                                                                  replacements,\
                                                                   loads,\
+                                                                  replacements,\
                                                                   (expr), \
                                                                   sbOut)
 
