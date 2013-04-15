@@ -57,8 +57,8 @@ static inline IRTemp fi_reg_instrument_access_tmp(toolData *tool_data,
         IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
         LoadData *load_data = (LoadData*)VG_(indexXA)(loads, first);
         IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
-                                      load_data->dest_temp,
-                                      load_data->state_temp);
+                                      IRExpr_RdTmp(load_data->dest_temp),
+                                      IRExpr_RdTmp(load_data->state_temp));
         IRDirty *dirty = unsafeIRDirty_0_N(3, 
                                            "fi_reg_flip_or_leave",
                                            VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
@@ -129,6 +129,8 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                 INSTRUMENT_NESTED_ACCESS(*expr_ptr);
                 expr_ptr++;
             }
+            break;
+        default:
             break;
         }
     }

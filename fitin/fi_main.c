@@ -396,12 +396,14 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                            VG_(free),
                            sizeof(LoadData)); 
     VG_(setCmpFnXA)(loads, fi_reg_compare_loads);
+    VG_(sortXA)(loads);
 
     replacements = VG_(newXA)(VG_(malloc),
                               "fi.reg.replace.list",
                               VG_(free),
                               sizeof(ReplaceData)); 
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
+    VG_(sortXA)(replacements);
 
     /* Set up SB */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -414,8 +416,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     }
 
     for (/*use current i*/; i < sbIn->stmts_used; i++) {
-        Bool skip_original = False;
-
         st = sbIn->stmts[i];
 
         if (!st || st->tag == Ist_NoOp) {
@@ -480,7 +480,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     INSTRUMENT_LOAD_AND_ACCESS(st->Ist.Exit.guard);
                     break;
                 default:
-                    tl_assert(0);
+                    break;
             }
 
             //print monitored instructions
@@ -522,7 +522,6 @@ static void fi_fini(Int exitcode) {
         Monitorable *mon = (Monitorable *)VG_(indexXA)(mons, i);
         tl_assert(mon != NULL);
         //TODO: New repersentation of valid: valid up to modify
-        //if (!mon->monValid) continue;
 
         if(VG_(clo_verbosity) > 1) {
             VG_(printf)("Monitorable memory address: 0x%016llX\n", mon->monAddr);
@@ -581,9 +580,6 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
             } else {
                 VG_(addToXA)(tData.monitorables, &mon);
             }
-
-//			if( !VG_(lookupXA)(tData.monitorables, &mon, NULL, NULL))
-//				VG_(addToXA)(tData.monitorables, &mon);
 
             VG_(sortXA)(tData.monitorables);
 
