@@ -452,7 +452,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         fi_reg_add_temp_load(loads, st->Ist.WrTmp.tmp, state_temp);
                     }
 
-                    fi_reg_instrument_access(&tData, replacements, loads, st->Ist.WrTmp.data, sbOut);
+                    fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
                     break;
                 }
                 case Ist_Store:

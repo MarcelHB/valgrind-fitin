@@ -1,5 +1,7 @@
 #include "fi_reg.h"
 
+#include "pub_tool_debuginfo.h"
+
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
 static void replace_temps(XArray *replacements, IRExpr *expr);
@@ -28,7 +30,8 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
 }
 
 // ----------------------------------------------------------------------------
-static UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, UWord state) {
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data, UWord data, UWord state) {
+    VG_(printf)("%u, %u\n", data, state);
     tool_data->loads++;
 
     if(state != 0 && tool_data->injections == 0) {
@@ -40,7 +43,7 @@ static UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, UWord state) 
             data ^= (1 << tool_data->modBit);
         }
     }
-
+    VG_(printf)("DATA: %u\n", data);
     return data;
 }
 
