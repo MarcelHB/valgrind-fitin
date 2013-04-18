@@ -19,7 +19,8 @@
 
 typedef struct {
     IRTemp dest_temp;
-    IRTemp state_temp;
+    IRExpr *addr; 
+    IRTemp state_list_index;
 } LoadData;
 
 typedef struct {
@@ -27,7 +28,7 @@ typedef struct {
     IRTemp new_temp;
 } ReplaceData;
 
-void fi_reg_add_temp_load(XArray *list, IRTemp dest, IRTemp state);
+void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
 Int fi_reg_compare_loads(void *l1, void *l2);
 

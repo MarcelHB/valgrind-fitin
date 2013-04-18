@@ -33,6 +33,13 @@ typedef enum {
     //MT_FILTFUNCABOVE
 } filterType;
 
+#define LOAD_STATE_INVALID_INDEX -1
+
+typedef struct {
+    Bool relevant;
+    Addr location;
+} LoadState;
+
 // This is a data structure to store tool specific data.
 typedef struct _toolData {
     // This is the current intruction Address during the 'static' analysis.
@@ -61,6 +68,10 @@ typedef struct _toolData {
     XArray *monitorables;
     // Counter for overall monitored loads
     ULong monLoadCnt;
+    // FITIn-reg: option to allow writing back a flipped value
+    Bool write_back_flip;
+    // FITIn-reg: runtime list allowing lookup of original address
+    XArray *load_states;
 } toolData;
 
 /*

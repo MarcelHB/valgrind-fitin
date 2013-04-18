@@ -7,9 +7,8 @@ static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 static void replace_temps(XArray *replacements, IRExpr *expr);
 
 // ----------------------------------------------------------------------------
-inline void fi_reg_add_temp_load(XArray *list, IRTemp dest, IRTemp state) {
-    LoadData data = (LoadData) { dest, state };
-    VG_(addToXA)(list, &data);
+inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
+    VG_(addToXA)(list, data);
     VG_(sortXA)(list);
 }
 
@@ -30,16 +29,22 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
 }
 
 // ----------------------------------------------------------------------------
-static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data, UWord data, UWord state) {
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_list_index) {
     tool_data->loads++;
 
-    if(state != 0 && tool_data->injections == 0) {
+    LoadState *state = VG_(indexXA)(tool_data->load_states, state_list_index);
+
+    if(state->relevant && (tool_data->injections == 0)) {
         tool_data->monLoadCnt++;
 
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
             tool_data->injections++;
-            data ^= (1 << tool_data->modBit);
+            data ^= (1 << (tool_data->modBit % SIZE_SUFFIX()));
+
+            if(tool_data->write_back_flip) {
+                *((UWord*)state->location) = data;
+            }
         }
     }
 
@@ -51,7 +56,7 @@ static inline IRTemp fi_reg_instrument_access_tmp(toolData *tool_data,
                                                   XArray *loads,
                                                   IRTemp tmp,
                                                   IRSB *sb) {
-    LoadData key = (LoadData) { tmp, 0 };
+    LoadData key = (LoadData) { tmp, 0, 0 };
     Word first, last;
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
@@ -60,11 +65,14 @@ static inline IRTemp fi_reg_instrument_access_tmp(toolData *tool_data,
         LoadData *load_data = (LoadData*)VG_(indexXA)(loads, first);
         IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
                                       IRExpr_RdTmp(load_data->dest_temp),
-                                      IRExpr_RdTmp(load_data->state_temp));
-        IRDirty *dirty = unsafeIRDirty_0_N(3, 
+                                      IRExpr_RdTmp(load_data->state_list_index));
+        IRDirty *dirty = unsafeIRDirty_0_N(3,
                                            "fi_reg_flip_or_leave",
                                            VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
                                            args);
+        dirty->mAddr = load_data->addr;
+        dirty->mSize = sizeof(UWord);
+        dirty->mFx = Ifx_Modify;
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);

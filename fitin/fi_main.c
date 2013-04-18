@@ -115,6 +115,11 @@ static void initTData() {
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
     VG_(sortXA)(tData.monitorables);
+
+    tData.load_states = VG_(newXA)(VG_(malloc),
+                                   "tData.loadStates.init",
+                                   VG_(free),
+                                   sizeof(LoadState));
 }
 
 /* Check whether the instruction at 'instAddr' is in the function with the name
@@ -209,6 +214,7 @@ static Bool fi_process_cmd_line_option(Char *arg) {
     else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
     else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
+    else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
     else {
         return False;
     }
@@ -226,11 +232,13 @@ static void fi_print_usage(void) {
         "    --include=<dir>           monitor instructions whci have debug   \n"
         "                              information from this directory        \n"
         "    --mod-load-time=<number>  modify at a given load time [0]        \n"
-        "    --mod_bit=<number>        modify the given bit of the target     \n"
-        "    --inst_limit=<number>     the maximum numbers of instructions to \n"
+        "    --mod-bit=<number>        modify the given bit of the target     \n"
+        "    --inst-limit=<number>     the maximum numbers of instructions to \n"
         "                              be executed. To prevent endless loops. \n"
         "    --golden-run=[yes|no]     States whether this is the golden run. \n"
         "                              The golden run just monitors, no modify\n"
+        "    --persist-flip=[yes|no]   writes flipped data back to its memory \n"
+        "                              origin\n"
     );
 }
 
@@ -252,12 +260,14 @@ static void fi_post_clo_init(void) {
  *  The returned value indicates whether the loaded address is revelant for variable
  *  tracing.
  */
-static UWord VEX_REGPARM(3) preLoadHelper(toolData *td, 
-                                          Addr dataAddr,
-                                          SizeT memSize) {
-    UWord relevant = 0;
+static Word VEX_REGPARM(2) preLoadHelper(toolData *td, 
+                                         Addr dataAddr) {
+    LoadState state = (LoadState) { False, dataAddr };
+    Monitorable key;
+    Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
 
-    tl_assert(td != NULL && memSize > 0);
+    tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
+
     // Always increment all overall load operations
     td->loads++;
 
@@ -266,59 +276,25 @@ static UWord VEX_REGPARM(3) preLoadHelper(toolData *td,
         return 0;
     }
 
-    Monitorable key;
-    Word first, last;
     key.monAddr = dataAddr;
 
     if(VG_(clo_verbosity) > 1) {
-        VG_(printf)("Load: 0x%08x; size: 0x%08x; data: 0x%08x\n", dataAddr, memSize, *((unsigned long *) dataAddr));
+        VG_(printf)("Load: 0x%08x\n", dataAddr);
     }
 
-    tl_assert(td->monitorables != NULL);
     // iterate over monitorables list
     if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
         Word i;
-        Monitorable *mon;
+        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
-        for(i = first; i <= last; i++) {
-            mon = (Monitorable *)VG_(indexXA)(td->monitorables, i);
-            tl_assert(mon != NULL);
-
-            if(!mon->monValid) {
-                continue;
-            }
-
-            relevant = 1;
-
-            // if the monitorable is valid
-            mon->monLoads++;
-            tData.monLoadCnt++;
-
-            if(!td->goldenRun &&
-                tData.modMemLoadTime == tData.monLoadCnt) {
-                // Bring the mod bit to the valid bounds
-                UChar numOfBits = memSize << 3; // memSize * 8
-                UChar realModBit = mon->modBit % numOfBits;
-                UChar realModByte = realModBit >> 3; // realModBit / 8
-                UChar *modPtr = (UChar *) ( mon->monAddr  + realModByte);
-                *modPtr ^= (1 << (realModBit % 8));
-                td->injections++;
-
-                if(VG_(clo_verbosity) > 1) {
-                    VG_(printf)("Modded! monAddr:    0x%016lX\n", mon->monAddr);
-                    VG_(printf)("        monSize:    %d\n", mon->monSize);
-                    VG_(printf)("        monLoads:   %d\n", mon->monLoads);
-                    VG_(printf)("        modPtr:     0x%016lX\n", modPtr);
-                    VG_(printf)("        realModBit: %d\n", realModBit);
-                }
-
-                // FITIn-reg: there is no need to continue                 
-                return 0;
-            }
+        if(!mon->monValid) {
+            state.relevant = True;
         }
     }
 
-    return relevant;
+    VG_(addToXA)(td->load_states, &state);
+
+    return state_list_size;
 }
 
 /** 
@@ -327,27 +303,21 @@ static UWord VEX_REGPARM(3) preLoadHelper(toolData *td,
  *
  * The returned value is a pair of a load marker and the corresponding trace flag.
  */
-static IRTemp instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
-    if(td == NULL || expr == NULL || sbOut == NULL) {
-        VG_(printf)("Couldn't instrument LD: td: 0x%08x, expr: 0x%08x, sbOut: 0x%08x\n", td,  expr, sbOut);
-        return NULL;
-    }
-
+static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     if (expr->tag == Iex_Load) {
         IRDirty *di;
         IRExpr **args;
         IRStmt *st;
+        LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
         // FITIn-reg, TODO: check Load.addr for RdTmp
         Int memSize = sizeofIRType(expr->Iex.Load.ty);
-        args = mkIRExprVec_3(mkIRExpr_HWord(td),
-                             expr->Iex.Load.addr,
-                             mkIRExpr_HWord(memSize));
-        di = unsafeIRDirty_0_N ( 3, "preLoadHelper", VG_(fnptr_to_fnentry)(&preLoadHelper), args);
-        // The dirty call might modify the memory (which is the intention of the whole practice)
-        di->mAddr = expr->Iex.Load.addr;
-        di->mSize = memSize;
-        di->mFx = Ifx_Modify;
+        args = mkIRExprVec_2(mkIRExpr_HWord(td),
+                             expr->Iex.Load.addr);
+        di = unsafeIRDirty_0_N(2,
+                               "preLoadHelper",
+                               VG_(fnptr_to_fnentry)(&preLoadHelper),
+                               args);
         // FITIn-reg: indicates the need for further tracing
         di->tmp = newIRTemp(sbOut->tyenv, SIZE_SUFFIX(Ity_I));
 
@@ -356,22 +326,23 @@ static IRTemp instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 
         if(VG_(clo_verbosity) > 1) {
             ppIRStmt(st);
-            VG_(printf)("\n");
-            VG_(printf)("Load instrumented: instAddr: 0x%08x\n", td->instAddr);
+            VG_(printf)("\nLoad instrumented: instAddr: 0x%08x\n", td->instAddr);
         }
 
-        return di->tmp;
-    } else {
-        return IRTemp_INVALID;
+        load_data->addr = expr->Iex.Load.addr;
+        load_data->state_list_index = di->tmp;
+
+        return load_data;
     }
+
+    return NULL;
 }
 
-#define INSTRUMENT_LOAD_AND_ACCESS(expr) instrument_load(&tData, (expr), sbOut); \
-                                         fi_reg_instrument_access(&tData, \
-                                                                  loads,\
-                                                                  replacements,\
-                                                                  (expr), \
-                                                                  sbOut)
+#define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
+                                                         loads,\
+                                                         replacements,\
+                                                         (expr), \
+                                                         sbOut)
 
 static
 IRSB *fi_instrument ( VgCallbackClosure *closure,
@@ -439,45 +410,47 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     break;
                 case Ist_Put:
                     // FITIn-reg, TODO: allow tracing on explicit PUT
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.Put.data);
+                    INSTRUMENT_ACCESS(st->Ist.Put.data);
                     break;
                 case Ist_PutI:
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.PutI.details->ix);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.PutI.details->data);
+                    INSTRUMENT_ACCESS(st->Ist.PutI.details->ix);
+                    INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
-                    IRTemp state_temp = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
+                    LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
-                    if(state_temp != IRTemp_INVALID) {
-                        fi_reg_add_temp_load(loads, st->Ist.WrTmp.tmp, state_temp);
+                    if(load_data != NULL) {
+                        load_data->dest_temp = st->Ist.WrTmp.tmp;
+                        fi_reg_add_temp_load(loads, load_data);
+                        VG_(free)(load_data);
                     }
 
                     fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
                     break;
                 }
                 case Ist_Store:
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.Store.addr);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.Store.data);
+                    INSTRUMENT_ACCESS(st->Ist.Store.addr);
+                    INSTRUMENT_ACCESS(st->Ist.Store.data);
                     break;
                 case Ist_Dirty:
                     //FIXME: handle IRDirty Statements
                     break;
                 case Ist_CAS:                    
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.CAS.details->addr);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.CAS.details->expdLo);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.CAS.details->expdHi);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.CAS.details->dataLo);
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.CAS.details->dataHi);
+                    INSTRUMENT_ACCESS(st->Ist.CAS.details->addr);
+                    INSTRUMENT_ACCESS(st->Ist.CAS.details->expdLo);
+                    INSTRUMENT_ACCESS(st->Ist.CAS.details->expdHi);
+                    INSTRUMENT_ACCESS(st->Ist.CAS.details->dataLo);
+                    INSTRUMENT_ACCESS(st->Ist.CAS.details->dataHi);
                     break;
                 case Ist_LLSC:                
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.LLSC.addr);
+                    INSTRUMENT_ACCESS(st->Ist.LLSC.addr);
 
                     if(st->Ist.LLSC.storedata != NULL) {
-                        INSTRUMENT_LOAD_AND_ACCESS(st->Ist.LLSC.storedata);
+                        INSTRUMENT_ACCESS(st->Ist.LLSC.storedata);
                     }
                     break;
                 case Ist_Exit:
-                    INSTRUMENT_LOAD_AND_ACCESS(st->Ist.Exit.guard);
+                    INSTRUMENT_ACCESS(st->Ist.Exit.guard);
                     break;
                 default:
                     break;
@@ -531,6 +504,9 @@ static void fi_fini(Int exitcode) {
         monLoadCnt += mon->monLoads;
         monBytesLoad += (mon->monSize * mon->monLoads);
     }
+
+    VG_(deleteXA)(tData.monitorables);
+    VG_(deleteXA)(tData.load_states);
 
     VG_(printf)("Totals:\n");
     VG_(printf)("Overall memory loads: %d\n", tData.loads);
