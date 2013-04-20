@@ -5,10 +5,6 @@
 
 #include "pub_tool_basics.h"
 #include "pub_tool_tooliface.h"
-#include "pub_tool_mallocfree.h"
-#include "pub_tool_xarray.h"
-#include "pub_tool_machine.h"
-#include "pub_tool_libcbase.h"
 
 #include "fitin.h"
 

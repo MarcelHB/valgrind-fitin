@@ -1,5 +1,9 @@
 #include "fi_reg.h"
 
+#include "pub_tool_mallocfree.h"
+#include "pub_tool_xarray.h"
+#include "pub_tool_machine.h"
+#include "pub_tool_libcbase.h"
 #include "pub_tool_debuginfo.h"
 
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
