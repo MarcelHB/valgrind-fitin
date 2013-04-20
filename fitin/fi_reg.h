@@ -8,6 +8,7 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_xarray.h"
 #include "pub_tool_machine.h"
+#include "pub_tool_libcbase.h"
 
 #include "fitin.h"
 
@@ -28,11 +29,25 @@ typedef struct {
     IRTemp new_temp;
 } ReplaceData;
 
+typedef struct {
+    IRTemp temp;
+    Int offset;
+    Bool invalid;
+} OccupancyData;
+
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
+
+void fi_reg_add_load_on_get(XArray *loads,
+                            XArray *occupancies,
+                            IRExpr *expr);
+
+void fi_reg_add_occupancy(XArray *occupancies, Int offset, IRExpr *expr);
 
 Int fi_reg_compare_loads(void *l1, void *l2);
 
 Int fi_reg_compare_replacements(void *l1, void *l2);
+
+Int fi_reg_compare_occupancies(void *l1, void *l2);
 
 void fi_reg_instrument_access(toolData *tool_data,
                               XArray *loads,

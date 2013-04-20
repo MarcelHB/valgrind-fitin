@@ -301,7 +301,8 @@ static Word VEX_REGPARM(2) preLoadHelper(toolData *td,
  * Instrumentation of every LoadExpression.
  * The traversion of the statement exprssion tree probably not necessary in this detail
  *
- * The returned value is a pair of a load marker and the corresponding trace flag.
+ * The returned value is a pair of a load marker and an index to the load state list 
+ * where relevancy and address can be found.
  */
 static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     if (expr->tag == Iex_Load) {
@@ -310,7 +311,6 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        // FITIn-reg, TODO: check Load.addr for RdTmp
         Int memSize = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_2(mkIRExpr_HWord(td),
                              expr->Iex.Load.addr);
@@ -318,7 +318,6 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
                                args);
-        // FITIn-reg: indicates the need for further tracing
         di->tmp = newIRTemp(sbOut->tyenv, SIZE_SUFFIX(Ity_I));
 
         st = IRStmt_Dirty(di);
@@ -355,13 +354,16 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
-    XArray *loads = NULL, *replacements = NULL;
+    XArray *loads = NULL,
+           *replacements = NULL,
+           *occupancies = NULL;
 
     /* We don't currently support this case. */
     if (gWordTy != hWordTy) {
         VG_(tool_panic)("host/guest word size mismatch");
     }
 
+    // FITIn-reg: the list of loads
     loads = VG_(newXA)(VG_(malloc), 
                            "fi.reg.load.list",
                            VG_(free),
@@ -369,12 +371,21 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     VG_(setCmpFnXA)(loads, fi_reg_compare_loads);
     VG_(sortXA)(loads);
 
+    // FITIn-reg: the list of replacement rules for IRTemps
     replacements = VG_(newXA)(VG_(malloc),
                               "fi.reg.replace.list",
                               VG_(free),
                               sizeof(ReplaceData)); 
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
+
+    // FITIn-reg: the list of IRTemps that have moved to registers
+    occupancies = VG_(newXA)(VG_(malloc),
+                             "fi.reg.occupancy.list",
+                             VG_(free),
+                             sizeof(OccupancyData));
+    VG_(setCmpFnXA)(occupancies, fi_reg_compare_occupancies); 
+    VG_(sortXA)(occupancies);
 
     /* Set up SB */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -409,20 +420,24 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 case Ist_MBE:
                     break;
                 case Ist_Put:
-                    // FITIn-reg, TODO: allow tracing on explicit PUT
                     INSTRUMENT_ACCESS(st->Ist.Put.data);
+                    fi_reg_add_occupancy(occupancies, st->Ist.Put.offset, st->Ist.Put.data);
                     break;
                 case Ist_PutI:
+                    // FITIn-reg, needs further analysis
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->ix);
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
+                    INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
                         load_data->dest_temp = st->Ist.WrTmp.tmp;
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
+                    } else {
+                        fi_reg_add_load_on_get(loads, occupancies, st->Ist.WrTmp.data);
                     }
 
                     fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
@@ -468,6 +483,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
 
     VG_(deleteXA)(replacements);
     VG_(deleteXA)(loads);
+    VG_(deleteXA)(occupancies);
 
     return sbOut;
 }
@@ -517,8 +533,8 @@ static void fi_fini(Int exitcode) {
 
 static
 Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
-    if (!VG_IS_TOOL_USERREQ('F','I',args[0])
-            && VG_USERREQ__GDB_MONITOR_COMMAND   != args[0]) {
+    if (!VG_IS_TOOL_USERREQ('F', 'I', args[0])
+            && VG_USERREQ__GDB_MONITOR_COMMAND != args[0]) {
         return False;
     }
 
