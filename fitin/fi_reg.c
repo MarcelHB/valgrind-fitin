@@ -219,7 +219,7 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
             break;
         case Iex_CCall: {
             IRExpr **expr_ptr = expr->Iex.CCall.args;
-            while(expr_ptr != NULL) {
+            while(*expr_ptr != NULL) {
                 INSTRUMENT_NESTED_ACCESS(*expr_ptr);
                 expr_ptr++;
             }

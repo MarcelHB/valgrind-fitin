@@ -448,7 +448,17 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.Store.data);
                     break;
                 case Ist_Dirty:
-                    //FIXME: handle IRDirty Statements
+                    INSTRUMENT_ACCESS(st->Ist.Dirty.details->guard);
+                    IRExpr **arg_ptr = st->Ist.Dirty.details->args;
+
+                    while(*arg_ptr != NULL) {
+                        INSTRUMENT_ACCESS(*arg_ptr);
+                        arg_ptr++;
+                    }
+
+                    if(st->Ist.Dirty.details->mFx != Ifx_None) {
+                        INSTRUMENT_ACCESS(st->Ist.Dirty.details->mAddr);
+                    }
                     break;
                 case Ist_CAS:                    
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->addr);
