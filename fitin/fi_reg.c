@@ -131,7 +131,7 @@ inline UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_li
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
             tool_data->injections++;
-            data ^= (1 << (tool_data->modBit % SIZE_SUFFIX()));
+            data ^= (1 << tool_data->modBit);
 
             if(tool_data->write_back_flip) {
                 *((UWord*)state->location) = data;
@@ -140,6 +140,21 @@ inline UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_li
     }
 
     return data;
+}
+
+// ----------------------------------------------------------------------------
+inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a) {
+    tool_data->loads++;
+    tool_data->monLoadCnt++;
+
+    if(!tool_data->goldenRun &&
+        tool_data->modMemLoadTime == tool_data->monLoadCnt) {
+        UWord data = *((UWord*) a);
+        data ^= (1 << tool_data->modBit);
+        *((Word*) a) = data;
+
+        tool_data->injections++;
+    }
 }
 
 // ----------------------------------------------------------------------------

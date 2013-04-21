@@ -100,7 +100,7 @@ static Int cmpMonitorable (void *v1, void *v2) {
 static toolData tData;
 
 static void initTData() {
-    int i = 0;
+    Int i = 0;
 
     tData.instAddr = (Addr)NULL;
     tData.monitoredInst = False;
@@ -629,7 +629,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
 // ----------------------------------------------------------------------------
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
                                PtrdiffT offset, SizeT size) {
-    if(part == Vg_CoreSysCall) {
+    if(tData.injections == 0 && part == Vg_CoreSysCall) {
         Int index = OFFSET_TO_INDEX(offset);
 
         if(index < GENERAL_PURPOSE_REGISTERS) {
@@ -643,6 +643,37 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
             }
         }
     }
+}
+
+// ----------------------------------------------------------------------------
+static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
+                               Addr a, SizeT size) {
+    if(tData.injections == 0 && part == Vg_CoreSysCall) {
+        Word first, last;
+        Monitorable key;
+        key.monAddr = a;
+
+        if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
+            Int i = 0;
+            for(; i <= last; ++i) {
+                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+
+                if(!mon->monValid) {
+                    continue;
+                }
+
+                fi_reg_flip_or_leave_mem(&tData, a);
+                break;
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
+                                   Addr a) {
+    SizeT strlen = VG_(strlen)((Char*) a) + 1;
+    fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
 static void fi_pre_clo_init(void) {
@@ -667,7 +698,10 @@ static void fi_pre_clo_init(void) {
 
     // FITIn-reg
     VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
+
     VG_(track_pre_reg_read)(fi_reg_on_reg_read);
+    VG_(track_pre_mem_read)(fi_reg_on_mem_read);
+    VG_(track_pre_mem_read_asciiz)(fi_reg_on_mem_read_str);
 }
 
 VG_DETERMINE_INTERFACE_VERSION(fi_pre_clo_init)
