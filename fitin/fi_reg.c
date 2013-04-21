@@ -38,15 +38,43 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
 }
 
 // ----------------------------------------------------------------------------
-inline void fi_reg_set_occupancy(toolData *tool_data, Int offset, IRExpr *expr) {
+static void VEX_REGPARM(3) fi_reg_set_occupancy_origin(toolData *tool_data, 
+                                                       Int index,
+                                                       Word state_list_index) {
+    tool_data->occupancies[index].state_list_index = state_list_index;
+}
+
+// ----------------------------------------------------------------------------
+inline void fi_reg_set_occupancy(toolData *tool_data,
+                                 XArray *loads,
+                                 Int offset,
+                                 IRExpr *expr,
+                                 IRSB *sb) {
     Int index = OFFSET_TO_INDEX(offset);
 
     if(index < GENERAL_PURPOSE_REGISTERS) {
         if(expr->tag == Iex_RdTmp) {
-            tool_data->occupancies[index].temp = expr->Iex.RdTmp.tmp;
-        } else {
-            tool_data->occupancies[index].temp = IRTemp_INVALID;
+            Word first, last;
+            LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, NULL, 0 };
+
+            if(VG_(lookupXA)(loads, &key, &first, &last)) {            
+                IRStmt *st;
+                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+                IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+                                              mkIRExpr_HWord(index),
+                                              IRExpr_RdTmp(load_data->state_list_index));
+                IRDirty *dirty = unsafeIRDirty_0_N(3,
+                                                   "fi_reg_set_occupancy_origin",
+                                                   VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
+                                                   args);
+                st = IRStmt_Dirty(dirty);
+                addStmtToIRSB(sb, st);
+
+                tool_data->occupancies[index].temp = expr->Iex.RdTmp.tmp;
+                return;
+            }
         }
+        tool_data->occupancies[index].temp = IRTemp_INVALID;
     }
 }
 

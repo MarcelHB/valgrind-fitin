@@ -39,8 +39,12 @@ typedef enum {
 #define GENERAL_PURPOSE_REGISTERS 8
 #endif
 
+// FITIn-reg
 typedef struct {
+    // the temp that has been PUT to a register
     IRTemp temp;
+    // the index of the load states list of this temp
+    Word state_list_index;
 } OccupancyData;
 
 // This is a data structure to store tool specific data.

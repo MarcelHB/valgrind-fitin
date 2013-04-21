@@ -411,7 +411,11 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     break;
                 case Ist_Put:
                     INSTRUMENT_ACCESS(st->Ist.Put.data);
-                    fi_reg_set_occupancy(&tData, st->Ist.Put.offset, st->Ist.Put.data);
+                    fi_reg_set_occupancy(&tData,
+                                         loads,
+                                         st->Ist.Put.offset,
+                                         st->Ist.Put.data,
+                                         sbOut);
                     break;
                 case Ist_PutI:
                     // FITIn-reg, needs further analysis

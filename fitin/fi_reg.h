@@ -40,7 +40,11 @@ void fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRExpr *expr);
 
-void fi_reg_set_occupancy(toolData *tool_data, Int offset, IRExpr *expr);
+void fi_reg_set_occupancy(toolData *tool_data,
+                          XArray *loads,
+                          Int offset,
+                          IRExpr *expr,
+                          IRSB *sb);
 
 Int fi_reg_compare_loads(void *l1, void *l2);
 
