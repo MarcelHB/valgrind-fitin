@@ -33,12 +33,15 @@ typedef enum {
     //MT_FILTFUNCABOVE
 } filterType;
 
-#define LOAD_STATE_INVALID_INDEX -1
+#if __x86_64__
+#define GENERAL_PURPOSE_REGISTERS 16
+#else
+#define GENERAL_PURPOSE_REGISTERS 8
+#endif
 
 typedef struct {
-    Bool relevant;
-    Addr location;
-} LoadState;
+    IRTemp temp;
+} OccupancyData;
 
 // This is a data structure to store tool specific data.
 typedef struct _toolData {
@@ -72,6 +75,8 @@ typedef struct _toolData {
     Bool write_back_flip;
     // FITIn-reg: runtime list allowing lookup of original address
     XArray *load_states;
+    // FITIn-reg: occupancy list
+    OccupancyData occupancies[GENERAL_PURPOSE_REGISTERS];
 } toolData;
 
 /*

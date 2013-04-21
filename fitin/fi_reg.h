@@ -10,9 +10,18 @@
 
 #if __x86_64__
 #define SIZE_SUFFIX(n) n ## 64
+#define OFFSET_TO_INDEX(o) (o - 16)/8
 #else
 #define SIZE_SUFFIX(n) n ## 32
+#define OFFSET_TO_INDEX(o) (o - 8)/4
 #endif
+
+#define LOAD_STATE_INVALID_INDEX -1
+
+typedef struct {
+    Bool relevant;
+    Addr location;
+} LoadState;
 
 typedef struct {
     IRTemp dest_temp;
@@ -25,19 +34,13 @@ typedef struct {
     IRTemp new_temp;
 } ReplaceData;
 
-typedef struct {
-    IRTemp temp;
-    Int offset;
-    Bool invalid;
-} OccupancyData;
-
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
-void fi_reg_add_load_on_get(XArray *loads,
-                            XArray *occupancies,
+void fi_reg_add_load_on_get(toolData *tool_data,
+                            XArray *loads,
                             IRExpr *expr);
 
-void fi_reg_add_occupancy(XArray *occupancies, Int offset, IRExpr *expr);
+void fi_reg_set_occupancy(toolData *tool_data, Int offset, IRExpr *expr);
 
 Int fi_reg_compare_loads(void *l1, void *l2);
 

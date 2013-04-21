@@ -354,9 +354,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
-    XArray *loads = NULL,
-           *replacements = NULL,
-           *occupancies = NULL;
+    XArray *loads = NULL, *replacements = NULL;
 
     /* We don't currently support this case. */
     if (gWordTy != hWordTy) {
@@ -378,14 +376,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                               sizeof(ReplaceData)); 
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
-
-    // FITIn-reg: the list of IRTemps that have moved to registers
-    occupancies = VG_(newXA)(VG_(malloc),
-                             "fi.reg.occupancy.list",
-                             VG_(free),
-                             sizeof(OccupancyData));
-    VG_(setCmpFnXA)(occupancies, fi_reg_compare_occupancies); 
-    VG_(sortXA)(occupancies);
 
     /* Set up SB */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -421,7 +411,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     break;
                 case Ist_Put:
                     INSTRUMENT_ACCESS(st->Ist.Put.data);
-                    fi_reg_add_occupancy(occupancies, st->Ist.Put.offset, st->Ist.Put.data);
+                    fi_reg_set_occupancy(&tData, st->Ist.Put.offset, st->Ist.Put.data);
                     break;
                 case Ist_PutI:
                     // FITIn-reg, needs further analysis
@@ -437,7 +427,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(loads, occupancies, st->Ist.WrTmp.data);
+                        fi_reg_add_load_on_get(loads, &tData, st->Ist.WrTmp.data);
                     }
 
                     fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
@@ -493,7 +483,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
 
     VG_(deleteXA)(replacements);
     VG_(deleteXA)(loads);
-    VG_(deleteXA)(occupancies);
 
     return sbOut;
 }

@@ -37,72 +37,37 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
     return (t1 == t2) ? 0 : ((t1 < t2) ? -1 : 1);
 }
 
-// Here, we don't have a key order. Accept it as a list.
 // ----------------------------------------------------------------------------
-Int fi_reg_compare_occupancies(void *o1, void *o2) {
-    OccupancyData *d1 = (OccupancyData*) o1;
-    OccupancyData *d2 = (OccupancyData*) o2;
+inline void fi_reg_set_occupancy(toolData *tool_data, Int offset, IRExpr *expr) {
+    Int index = OFFSET_TO_INDEX(offset);
 
-    if(d1->offset == d2->offset &&
-       d1->invalid == d2->invalid) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
-
-// ----------------------------------------------------------------------------
-inline void fi_reg_add_occupancy(XArray *occupancies, Int offset, IRExpr *expr) {
-    if(expr->tag == Iex_RdTmp) {
-        OccupancyData data;
-        Word first, last;
-
-        // invalidate unserved occupancies
-        OccupancyData key = (OccupancyData) { 0, offset, False };
-        if(VG_(lookupXA)(occupancies, &key, &first, &last)) {
-            int i = first;
-
-            for(; i <= last; ++i) {
-                OccupancyData *unserved = 
-                    (OccupancyData*) VG_(indexXA)(occupancies, i); 
-                unserved->invalid = True;
-            }
+    if(index < GENERAL_PURPOSE_REGISTERS) {
+        if(expr->tag == Iex_RdTmp) {
+            tool_data->occupancies[index].temp = expr->Iex.RdTmp.tmp;
+        } else {
+            tool_data->occupancies[index].temp = IRTemp_INVALID;
         }
-
-        data.offset = offset;
-        data.temp = expr->Iex.RdTmp.tmp;
-        data.invalid = False;
-
-        VG_(addToXA)(occupancies, &data);
-        VG_(sortXA)(occupancies);
     }
 }
 
 // ----------------------------------------------------------------------------
-inline void fi_reg_add_load_on_get(XArray *loads,
-                                   XArray *occupancies,
+inline void fi_reg_add_load_on_get(toolData *tool_data,
+                                   XArray *loads,
                                    IRExpr *expr) {
     if(expr->tag == Iex_Get) {
-        Word first, last;
-        OccupancyData key;
+        Int index = OFFSET_TO_INDEX(expr->Iex.Get.offset);
 
-        key.invalid = False;
-        key.offset = expr->Iex.Get.offset;
-
-        if(VG_(lookupXA)(occupancies, &key, &first, &last)) {
-            OccupancyData *occupancy_data = 
-                (OccupancyData*) VG_(indexXA)(occupancies, first);
-
-            LoadData load_key = (LoadData) { occupancy_data->temp, NULL, 0 };
+        if(index < GENERAL_PURPOSE_REGISTERS) {
+            IRTemp temp = tool_data->occupancies[index].temp;
+            LoadData load_key = (LoadData) { temp, NULL, 0 };
+            Word first, last;
             
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
                 LoadData new_load_data;
 
                 VG_(memcpy)(&new_load_data, load_data, sizeof(LoadData));
-                new_load_data.dest_temp = occupancy_data->temp;
-
-                occupancy_data->invalid = True;
+                new_load_data.dest_temp = temp;
 
                 VG_(addToXA)(loads, &new_load_data);
                 VG_(sortXA)(loads);
