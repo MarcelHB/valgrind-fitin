@@ -61,6 +61,10 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
             IRTemp temp = tool_data->occupancies[index].temp;
             LoadData load_key = (LoadData) { temp, NULL, 0 };
             Word first, last;
+
+            if(temp == IRTemp_INVALID) {
+                return;
+            }
             
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
