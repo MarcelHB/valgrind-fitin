@@ -100,6 +100,8 @@ static Int cmpMonitorable (void *v1, void *v2) {
 static toolData tData;
 
 static void initTData() {
+    int i = 0;
+
     tData.instAddr = (Addr)NULL;
     tData.monitoredInst = False;
     tData.loads = 0;
@@ -120,6 +122,10 @@ static void initTData() {
                                    "tData.loadStates.init",
                                    VG_(free),
                                    sizeof(LoadState));
+
+    for(; i < GENERAL_PURPOSE_REGISTERS; ++i) {
+        tData.occupancies[i] = (OccupancyData) { IRTemp_INVALID, LOAD_STATE_INVALID_INDEX };
+    }
 }
 
 /* Check whether the instruction at 'instAddr' is in the function with the name
