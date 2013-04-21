@@ -52,6 +52,10 @@ Int fi_reg_compare_replacements(void *l1, void *l2);
 
 Int fi_reg_compare_occupancies(void *l1, void *l2);
 
+UWord fi_reg_flip_or_leave(toolData *tool_data,
+                           UWord data, 
+                           Word state_list_index);
+
 void fi_reg_instrument_access(toolData *tool_data,
                               XArray *loads,
                               XArray *replacements,

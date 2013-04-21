@@ -626,6 +626,25 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    sizeof(LoadState));
 }
 
+// ----------------------------------------------------------------------------
+static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
+                               PtrdiffT offset, SizeT size) {
+    if(part == Vg_CoreSysCall) {
+        Int index = OFFSET_TO_INDEX(offset);
+
+        if(index < GENERAL_PURPOSE_REGISTERS) {
+            Int state_list_index = tData.occupancies[index].state_list_index;
+
+            if(state_list_index != LOAD_STATE_INVALID_INDEX) {
+                UWord data; 
+                VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
+                data = fi_reg_flip_or_leave(&tData, data, state_list_index);
+                VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
+            }
+        }
+    }
+}
+
 static void fi_pre_clo_init(void) {
     VG_(details_name)            ("FITIn");
     VG_(details_version)         (NULL);
@@ -648,6 +667,7 @@ static void fi_pre_clo_init(void) {
 
     // FITIn-reg
     VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
+    VG_(track_pre_reg_read)(fi_reg_on_reg_read);
 }
 
 VG_DETERMINE_INTERFACE_VERSION(fi_pre_clo_init)

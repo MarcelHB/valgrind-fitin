@@ -70,10 +70,10 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
             }
         }
 
-        **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
                                mkIRExpr_HWord(index),
                                IRExpr_RdTmp(state_list_index));
-        *dirty = unsafeIRDirty_0_N(3,
+        dirty = unsafeIRDirty_0_N(3,
                                    "fi_reg_set_occupancy_origin",
                                    VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
                                    args);
@@ -115,7 +115,12 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 }
 
 // ----------------------------------------------------------------------------
-static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_list_index) {
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_wrap(toolData *tool_data, UWord data, Word state_list_index) {
+   return fi_reg_flip_or_leave(tool_data, data, state_list_index);
+}
+
+// ----------------------------------------------------------------------------
+inline UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_list_index) {
     tool_data->loads++;
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
@@ -154,7 +159,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                       IRExpr_RdTmp(load_data->dest_temp),
                                       IRExpr_RdTmp(load_data->state_list_index));
         IRDirty *dirty = unsafeIRDirty_0_N(3,
-                                           "fi_reg_flip_or_leave",
+                                           "fi_reg_flip_or_leave_wrap",
                                            VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
                                            args);
         dirty->mAddr = load_data->addr;
