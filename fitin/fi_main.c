@@ -416,7 +416,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 case Ist_MBE:
                     break;
                 case Ist_Put:
-                    INSTRUMENT_ACCESS(st->Ist.Put.data);
+                    // I don't think that this makes any sense
+                    // INSTRUMENT_ACCESS(st->Ist.Put.data);
                     fi_reg_set_occupancy(&tData,
                                          loads,
                                          st->Ist.Put.offset,
