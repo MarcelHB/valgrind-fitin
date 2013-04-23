@@ -299,7 +299,6 @@ static Word VEX_REGPARM(2) preLoadHelper(toolData *td,
     }
 
     VG_(addToXA)(td->load_states, &state);
-    VG_(sortXA)(td->load_states);
 
     return state_list_size;
 }
