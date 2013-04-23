@@ -45,6 +45,12 @@ static void VEX_REGPARM(3) fi_reg_set_occupancy_origin(toolData *tool_data,
 }
 
 // ----------------------------------------------------------------------------
+static void VEX_REGPARM(2) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
+                                                               Int index) {
+    tool_data->occupancies[index].state_list_index = LOAD_STATE_INVALID_INDEX;
+}
+
+// ----------------------------------------------------------------------------
 inline void fi_reg_set_occupancy(toolData *tool_data,
                                  XArray *loads,
                                  Int offset,
@@ -53,8 +59,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
     Int index = OFFSET_TO_INDEX(offset);
 
     if(index < GENERAL_PURPOSE_REGISTERS) {
-        IRTemp temp = IRTemp_INVALID;
-        Int state_list_index = LOAD_STATE_INVALID_INDEX;
+        Bool valid_origin = False;
         IRStmt *st;
         IRExpr **args;
         IRDirty *dirty;
@@ -63,24 +68,38 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
             Word first, last;
             LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, NULL, 0 };
 
-            if(VG_(lookupXA)(loads, &key, &first, &last)) {            
+            if(VG_(lookupXA)(loads, &key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-                temp = expr->Iex.RdTmp.tmp;
-                state_list_index = load_data->state_list_index;
+
+                args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+                                       mkIRExpr_HWord(index),
+                                       IRExpr_RdTmp(load_data->state_list_index));
+                dirty = unsafeIRDirty_0_N(3,
+                                           "fi_reg_set_occupancy_origin",
+                                           VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
+                                           args);
+
+                st = IRStmt_Dirty(dirty);
+                addStmtToIRSB(sb, st);
+
+                tool_data->occupancies[index].temp = expr->Iex.RdTmp.tmp;
+                valid_origin = True;
             }
         }
 
-        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
-                               mkIRExpr_HWord(index),
-                               IRExpr_RdTmp(state_list_index));
-        dirty = unsafeIRDirty_0_N(3,
-                                   "fi_reg_set_occupancy_origin",
-                                   VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
-                                   args);
-        st = IRStmt_Dirty(dirty);
-        addStmtToIRSB(sb, st);
+        // We need to do it this way, IRTemp_INVALID cannot be passed.
+        if(!valid_origin) {
+            tool_data->occupancies[index].temp = IRTemp_INVALID;
 
-        tool_data->occupancies[index].temp = temp;
+            args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
+                                 mkIRExpr_HWord(index));
+            dirty = unsafeIRDirty_0_N(2,
+                                      "fi_reg_set_occupancy_origin_invalid",
+                                      VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin_invalid),
+                                      args);
+            st = IRStmt_Dirty(dirty);
+            addStmtToIRSB(sb, st);
+        }
     }
 }
 
