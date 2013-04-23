@@ -8,12 +8,12 @@
 
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
-static void replace_temps(XArray *replacements, IRExpr *expr);
+static void replace_temps(XArray *replacements, IRExpr **expr);
 
 static IRTemp instrument_access_tmp(toolData *tool_data,
-                                           XArray *loads,
-                                           IRTemp tmp,
-                                           IRSB *sb);
+                                    XArray *loads,
+                                    IRTemp tmp,
+                                    IRSB *sb);
 
 // ----------------------------------------------------------------------------
 inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
@@ -213,54 +213,58 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
 #define INSTRUMENT_NESTED_ACCESS(expr) fi_reg_instrument_access(tool_data,\
                                                                 loads, \
                                                                 replacements, \
-                                                                (expr), \
-                                                                sb);
+                                                                &(expr), \
+                                                                sb, \
+                                                                replace_only);
 
 // ----------------------------------------------------------------------------
 inline void  fi_reg_instrument_access(toolData *tool_data,
                                       XArray *loads,
                                       XArray *replacements,
-                                      IRExpr *expr,
-                                      IRSB *sb) {
-    switch(expr->tag) {
+                                      IRExpr **expr,
+                                      IRSB *sb,
+                                      Bool replace_only) {
+    switch((*expr)->tag) {
         case Iex_GetI:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.GetI.ix);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.GetI.ix);
             break;
         case Iex_RdTmp:
-            add_replacement(replacements,
-                            expr->Iex.RdTmp.tmp,
-                            instrument_access_tmp(
-                                tool_data,
-                                loads,
-                                expr->Iex.RdTmp.tmp,
-                                sb));
+            if(!replace_only) {
+                add_replacement(replacements,
+                                (*expr)->Iex.RdTmp.tmp,
+                                instrument_access_tmp(
+                                    tool_data,
+                                    loads,
+                                    (*expr)->Iex.RdTmp.tmp,
+                                    sb));
+            }
             replace_temps(replacements, expr);
             break;
         case Iex_Qop:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Qop.details->arg1);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Qop.details->arg2);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Qop.details->arg3);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Qop.details->arg4);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg1);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg2);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg3);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg4);
             break;
         case Iex_Triop:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Triop.details->arg1);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Triop.details->arg2);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Triop.details->arg3);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Triop.details->arg1);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Triop.details->arg2);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Triop.details->arg3);
             break;
         case Iex_Binop:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Binop.arg1);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Binop.arg2);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Binop.arg1);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Binop.arg2);
             break;
         case Iex_Unop:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Unop.arg);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Unop.arg);
             break;
         case Iex_Mux0X:
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Mux0X.cond);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Mux0X.expr0);
-            INSTRUMENT_NESTED_ACCESS(expr->Iex.Mux0X.exprX);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.cond);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.expr0);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.exprX);
             break;
         case Iex_CCall: {
-            IRExpr **expr_ptr = expr->Iex.CCall.args;
+            IRExpr **expr_ptr = (*expr)->Iex.CCall.args;
             while(*expr_ptr != NULL) {
                 INSTRUMENT_NESTED_ACCESS(*expr_ptr);
                 expr_ptr++;
@@ -282,12 +286,15 @@ static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_tem
 }
 
 // ----------------------------------------------------------------------------
-static inline void replace_temps(XArray *replacements, IRExpr *expr) {
-    ReplaceData key = (ReplaceData) { expr->Iex.RdTmp.tmp, 0 };
+static inline void replace_temps(XArray *replacements, IRExpr **expr) {
+    ReplaceData key = (ReplaceData) { (*expr)->Iex.RdTmp.tmp, 0 };
     Word first, last;
 
     if(VG_(lookupXA)(replacements, &key, &first, &last)) {
+        // unless copied, all uses of an IRTemp share the same IRExpr,
+        // so otherwise this would change previous uses as well
+        *expr = deepCopyIRExpr(*expr);
         ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
-        expr->Iex.RdTmp.tmp = replace_data->new_temp;
+        (*expr)->Iex.RdTmp.tmp = replace_data->new_temp;
     } 
 }

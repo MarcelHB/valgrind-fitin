@@ -61,7 +61,8 @@ void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a);
 void fi_reg_instrument_access(toolData *tool_data,
                               XArray *loads,
                               XArray *replacements,
-                              IRExpr *expr,
-                              IRSB *sb);
+                              IRExpr **expr,
+                              IRSB *sb,
+                              Bool replace_only);
 
 #endif

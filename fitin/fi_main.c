@@ -346,9 +346,16 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
                                                          loads,\
                                                          replacements,\
-                                                         (expr), \
-                                                         sbOut)
+                                                         &(expr), \
+                                                         sbOut, \
+                                                         False)
 
+#define JUST_REPLACE_ACCESS(expr) fi_reg_instrument_access(&tData, \
+                                                           loads,\
+                                                           replacements,\
+                                                           &(expr), \
+                                                           sbOut, \
+                                                           True)
 static
 IRSB *fi_instrument ( VgCallbackClosure *closure,
                       IRSB *sbIn,
@@ -416,8 +423,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 case Ist_MBE:
                     break;
                 case Ist_Put:
-                    // I don't think that this makes any sense
-                    // INSTRUMENT_ACCESS(st->Ist.Put.data);
+                    JUST_REPLACE_ACCESS(st->Ist.Put.data);
                     fi_reg_set_occupancy(&tData,
                                          loads,
                                          st->Ist.Put.offset,
@@ -438,10 +444,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(&tData,loads, st->Ist.WrTmp.data);
+                        fi_reg_add_load_on_get(&tData, loads, st->Ist.WrTmp.data);
                     }
-
-                    fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
                     break;
                 }
                 case Ist_Store:
