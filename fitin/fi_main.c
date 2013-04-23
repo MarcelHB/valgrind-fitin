@@ -299,6 +299,7 @@ static Word VEX_REGPARM(2) preLoadHelper(toolData *td,
     }
 
     VG_(addToXA)(td->load_states, &state);
+    VG_(sortXA)(td->load_states);
 
     return state_list_size;
 }
@@ -437,7 +438,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(loads, &tData, st->Ist.WrTmp.data);
+                        fi_reg_add_load_on_get(&tData,loads, st->Ist.WrTmp.data);
                     }
 
                     fi_reg_instrument_access(&tData, loads, replacements, st->Ist.WrTmp.data, sbOut);
