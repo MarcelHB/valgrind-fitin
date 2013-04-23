@@ -645,27 +645,34 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
     }
 }
 
+// This method will check for every `size` bytes, beginning at `a` whether there
+// exists a monitorable. Otherwise, we can't handle bytes that are located away
+// from `a`, such as arrays or strings.
 // ----------------------------------------------------------------------------
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
                                Addr a, SizeT size) {
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
         Word first, last;
-        Monitorable key;
-        key.monAddr = a;
+        Int mem_offset = 0;
 
-        if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
-            Int i = 0;
-            for(; i <= last; ++i) {
-                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+        for(; mem_offset <= size; ++mem_offset) {
+            Monitorable key;
+            key.monAddr = a + mem_offset;
 
-                if(!mon->monValid) {
-                    continue;
+            if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
+                Int i = 0;
+                for(; i <= last; ++i) {
+                    Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+
+                    if(!mon->monValid) {
+                        continue;
+                    }
+
+                    fi_reg_flip_or_leave_mem(&tData, a);
+                    break;
                 }
-
-                fi_reg_flip_or_leave_mem(&tData, a);
-                break;
             }
-        }
+       }
     }
 }
 
