@@ -135,7 +135,7 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 
 // ----------------------------------------------------------------------------
 static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_wrap(toolData *tool_data, UWord data, Word state_list_index) {
-   return fi_reg_flip_or_leave(tool_data, data, state_list_index);
+    return fi_reg_flip_or_leave(tool_data, data, state_list_index);
 }
 
 // ----------------------------------------------------------------------------
@@ -194,7 +194,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                       IRExpr_RdTmp(load_data->state_list_index));
         IRDirty *dirty = unsafeIRDirty_0_N(3,
                                            "fi_reg_flip_or_leave_wrap",
-                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
+                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_wrap),
                                            args);
         dirty->mAddr = load_data->addr;
         dirty->mSize = sizeof(UWord);
