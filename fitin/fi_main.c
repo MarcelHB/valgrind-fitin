@@ -290,11 +290,15 @@ static Word VEX_REGPARM(2) preLoadHelper(toolData *td,
 
     // iterate over monitorables list
     if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Word i;
-        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+        Word i = first;
 
-        if(!mon->monValid) {
-            state.relevant = True;
+        for(; i <= last; ++i) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+
+            if(mon->monValid) {
+                state.relevant = True;
+                break;
+            }
         }
     }
 
