@@ -43,8 +43,10 @@ typedef enum {
 typedef struct {
     // the temp that has been PUT to a register
     IRTemp temp;
-    // the index of the load states list of this temp
-    Word state_list_index;
+    // relevancy of registers
+    Bool relevant;
+    // original location of the data
+    Addr location
 } OccupancyData;
 
 // This is a data structure to store tool specific data.

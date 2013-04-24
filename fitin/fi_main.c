@@ -124,7 +124,7 @@ static void initTData() {
                                    sizeof(LoadState));
 
     for(; i < GENERAL_PURPOSE_REGISTERS; ++i) {
-        tData.occupancies[i] = (OccupancyData) { IRTemp_INVALID, LOAD_STATE_INVALID_INDEX };
+        tData.occupancies[i] = (OccupancyData) { IRTemp_INVALID, False, NULL };
     }
 }
 
@@ -624,6 +624,16 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     return True;
 }
 
+// The load states can be dropped after leaving client code to keep it
+// small.
+// ----------------------------------------------------------------------------
+static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
+    VG_(deleteXA)(tData.load_states);
+    tData.load_states = VG_(newXA)(VG_(malloc),
+                                   "fi.reg.loadStates.renew",
+                                   VG_(free),
+                                   sizeof(LoadState));
+}
 // ----------------------------------------------------------------------------
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
                                PtrdiffT offset, SizeT size) {
@@ -631,12 +641,12 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
         Int index = OFFSET_TO_INDEX(offset);
 
         if(index < GENERAL_PURPOSE_REGISTERS) {
-            Int state_list_index = tData.occupancies[index].state_list_index;
-
-            if(state_list_index != LOAD_STATE_INVALID_INDEX) {
+            if(tData.occupancies[index].relevant) {
                 UWord data; 
                 VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
-                data = fi_reg_flip_or_leave(&tData, data, state_list_index);
+                data = fi_reg_flip_or_leave_no_state_list(&tData,
+                                                          data,
+                                                          tData.occupancies[index].location);
                 VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
             }
         }
@@ -705,6 +715,7 @@ static void fi_pre_clo_init(void) {
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
     // FITIn-reg
+    VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
     VG_(track_pre_reg_read)(fi_reg_on_reg_read);
     VG_(track_pre_mem_read)(fi_reg_on_mem_read);
     VG_(track_pre_mem_read_asciiz)(fi_reg_on_mem_read_str);

@@ -41,13 +41,21 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
 static void VEX_REGPARM(3) fi_reg_set_occupancy_origin(toolData *tool_data, 
                                                        Int index,
                                                        Word state_list_index) {
-    tool_data->occupancies[index].state_list_index = state_list_index;
+    if(tool_data->injections == 0) {
+        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+        tool_data->occupancies[index].location = state->location;
+        tool_data->occupancies[index].relevant = True;
+    } else {
+        tool_data->occupancies[index].relevant = False;
+        tool_data->occupancies[index].location = NULL;
+    }
 }
 
 // ----------------------------------------------------------------------------
 static void VEX_REGPARM(2) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
                                                                Int index) {
-    tool_data->occupancies[index].state_list_index = LOAD_STATE_INVALID_INDEX;
+    tool_data->occupancies[index].relevant = False;
+    tool_data->occupancies[index].location = NULL;
 }
 
 // ----------------------------------------------------------------------------
@@ -134,27 +142,47 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 }
 
 // ----------------------------------------------------------------------------
-static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_wrap(toolData *tool_data, UWord data, Word state_list_index) {
-    return fi_reg_flip_or_leave(tool_data, data, state_list_index);
+inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
+                                                 UWord data,
+                                                 Word state_list_index) {
+    tool_data->loads++;
+
+    if(tool_data->injections == 0) {
+        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+        if(state->relevant) {
+            tool_data->monLoadCnt++;
+
+            if(!tool_data->goldenRun &&
+                tool_data->modMemLoadTime == tool_data->monLoadCnt) {
+                tool_data->injections++;
+                data ^= (1 << tool_data->modBit);
+
+                if(tool_data->write_back_flip) {
+                    *((UWord*)state->location) = data;
+                }
+            }
+        }
+    }
+
+    return data;
 }
 
 // ----------------------------------------------------------------------------
-inline UWord fi_reg_flip_or_leave(toolData *tool_data, UWord data, Word state_list_index) {
+inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
+                                                UWord data,
+                                                Addr a) {
     tool_data->loads++;
+    tool_data->monLoadCnt++;
 
-    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+    if(!tool_data->goldenRun &&
+        tool_data->modMemLoadTime == tool_data->monLoadCnt) {
+        tool_data->injections++;
 
-    if(state->relevant && (tool_data->injections == 0)) {
-        tool_data->monLoadCnt++;
+        data ^= (1 << tool_data->modBit);
 
-        if(!tool_data->goldenRun &&
-            tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-            tool_data->injections++;
-            data ^= (1 << tool_data->modBit);
-
-            if(tool_data->write_back_flip) {
-                *((UWord*)state->location) = data;
-            }
+        if(tool_data->write_back_flip) {
+            *((UWord*) a) = data;
         }
     }
 
@@ -193,8 +221,8 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                       IRExpr_RdTmp(load_data->dest_temp),
                                       IRExpr_RdTmp(load_data->state_list_index));
         IRDirty *dirty = unsafeIRDirty_0_N(3,
-                                           "fi_reg_flip_or_leave_wrap",
-                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_wrap),
+                                           "fi_reg_flip_or_leave",
+                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
                                            args);
         dirty->mAddr = load_data->addr;
         dirty->mSize = sizeof(UWord);
