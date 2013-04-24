@@ -620,17 +620,6 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     return True;
 }
 
-// The load states can be dropped after leaving client code to keep it
-// small.
-// ----------------------------------------------------------------------------
-static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
-    VG_(deleteXA)(tData.load_states);
-    tData.load_states = VG_(newXA)(VG_(malloc),
-                                   "fi.reg.loadStates.renew",
-                                   VG_(free),
-                                   sizeof(LoadState));
-}
-
 // ----------------------------------------------------------------------------
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
                                PtrdiffT offset, SizeT size) {
@@ -712,8 +701,6 @@ static void fi_pre_clo_init(void) {
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
     // FITIn-reg
-    VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
-
     VG_(track_pre_reg_read)(fi_reg_on_reg_read);
     VG_(track_pre_mem_read)(fi_reg_on_mem_read);
     VG_(track_pre_mem_read_asciiz)(fi_reg_on_mem_read_str);
