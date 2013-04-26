@@ -27,12 +27,12 @@ end
 task :clean_tests do
   test_data_records.each do |test|
     test["files"].each do |c_file|
-      File.unlink(object_file(c_file))
+      unlink(object_file(c_file))
     end
   end
 
   FileUtils.rm_rf(local(TEST_BIN))
-  File.unlink(local(TEST_BUILT_FILE))
+  unlink(local(TEST_BUILT_FILE))
 end
 
 #------------------------------------------------------------------------------
@@ -136,4 +136,11 @@ def test_data_records
   data = JSON.parse(File.read(local(TEST_DATA)))
 
   data["tests"]
+end
+
+#------------------------------------------------------------------------------
+def unlink(file)
+  if File.exists?(file)
+    File.unlink(file)
+  end
 end
