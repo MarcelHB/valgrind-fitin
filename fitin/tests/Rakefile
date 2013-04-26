@@ -37,9 +37,13 @@ end
 
 #------------------------------------------------------------------------------
 task :build_tests do
-  test_data_records.each do |test|
-    build_test(test)
+  unless skip_building?
+    test_data_records.each do |test|
+      build_test(test)
+    end
   end
+
+  set_built_marker 
 end
 
 #------------------------------------------------------------------------------
@@ -60,18 +64,15 @@ end
 
 #------------------------------------------------------------------------------
 def build_test(test)
-  unless skip_building?
-    test["files"].each do |src|
-      sh "#{CC} #{CFLAGS} -c #{src} -o #{object_file(src)}"
-    end
-
-    FileUtils.mkdir_p(local("bin"))
-
-    objects = test["files"].map { |src| object_file(src) }
-    sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
-
-    set_built_marker 
+  test["files"].each do |src|
+    sh "#{CC} #{CFLAGS} -c #{src} -o #{object_file(src)}"
   end
+
+  FileUtils.mkdir_p(local("bin"))
+
+  objects = test["files"].map { |src| object_file(src) }
+  sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
+
 end
 
 #------------------------------------------------------------------------------
