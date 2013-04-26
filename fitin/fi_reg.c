@@ -8,6 +8,13 @@
 
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
+static void add_modifier_for_register(toolData *tool_data, Int index, IRSB *sb);
+
+static void analyze_dirty_and_add_modifiers(toolData *tool_data,
+                                            IRDirty *di,
+                                            Int nFx,
+                                            IRSB *sb);
+
 static void replace_temps(XArray *replacements, IRExpr **expr);
 
 static IRTemp instrument_access_tmp(toolData *tool_data,
@@ -325,4 +332,89 @@ static inline void replace_temps(XArray *replacements, IRExpr **expr) {
         ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
         (*expr)->Iex.RdTmp.tmp = replace_data->new_temp;
     } 
+}
+
+// ----------------------------------------------------------------------------
+inline void fi_reg_add_pre_dirty_modifiers(toolData *tool_data, IRDirty *st, IRSB *sb) {
+    if(st->needsBBP) {
+        Int i = 0;
+        for(; i < st->nFxState; ++i) {
+            if(st->fxState[i].fx == Ifx_Read ||
+               st->fxState[i].fx == Ifx_Modify) {
+                analyze_dirty_and_add_modifiers(tool_data, st, i, sb);
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
+                                                   IRDirty *st,
+                                                   Int nFx,
+                                                   IRSB *sb) {
+    Bool relevant[GENERAL_PURPOSE_REGISTERS] = { False };
+
+    // just some variables to deal with anonymous type st->fxState[i]
+    UShort offset = st->fxState[nFx].offset, 
+           size = st->fxState[nFx].offset;
+    UChar nRepeats = st->fxState[nFx].nRepeats, 
+          repeatLen = st->fxState[nFx].repeatLen;
+    Int i = 0;
+    
+    // Read indices from offsets in range
+    for(; i <= nRepeats; ++i) {
+        Int start_offset = offset + i * repeatLen; 
+        Int j = 0;
+
+        for(; j < size; ++j) {
+            Int index = OFFSET_TO_INDEX(start_offset + j);
+
+            if(index < GENERAL_PURPOSE_REGISTERS) {
+                relevant[index] = True;
+            }
+        }
+    }
+
+    for(i = 0; i < GENERAL_PURPOSE_REGISTERS; ++i) {
+        if(relevant[i]) {
+            add_modifier_for_register(tool_data, i, sb);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
+                                                                   toolData *tool_data,
+                                                                   Int index) {
+    if(tool_data->occupancies[index].relevant) {
+        Int offset = INDEX_TO_OFFSET(index);
+        UWord data = *(UWord*)(((UChar*) bp) + offset);
+
+        data = fi_reg_flip_or_leave_no_state_list(tool_data,
+                                                  data,
+                                                  tool_data->occupancies[index].location);
+        *(UWord*)(((UChar*) bp) + offset) = data;
+    }
+}
+
+// ----------------------------------------------------------------------------
+static inline void add_modifier_for_register(toolData *tool_data, Int index, IRSB *sb) {
+    IRStmt *st;
+    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
+                                  mkIRExpr_HWord(index));
+
+    IRDirty *di = unsafeIRDirty_0_N(2,
+                                   "fi_reg_flip_or_leave_no_state_list_wrap",
+                                    VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_no_state_list_wrap),
+                                    args);
+    di->nFxState = 1;
+    di->fxState[0].fx = Ifx_Modify;
+    di->fxState[0].offset = INDEX_TO_OFFSET(index);
+    di->fxState[0].size = SIZE_SUFFIX() / 8;
+    di->fxState[0].nRepeats = 0;
+    di->fxState[0].repeatLen = 0;
+    di->needsBBP = True;
+
+    st = IRStmt_Dirty(di);
+    addStmtToIRSB(sb, st);
 }

@@ -11,9 +11,11 @@
 #if __x86_64__
 #define SIZE_SUFFIX(n) n ## 64
 #define OFFSET_TO_INDEX(o) (o - 16)/8
+#define INDEX_TO_OFFSET(i) i * 8 + 16
 #else
 #define SIZE_SUFFIX(n) n ## 32
 #define OFFSET_TO_INDEX(o) (o - 8)/4
+#define INDEX_TO_OFFSET(i) i * 4 + 8
 #endif
 
 #define LOAD_STATE_INVALID_INDEX -1
@@ -39,6 +41,10 @@ void fi_reg_add_temp_load(XArray *list, LoadData* data);
 void fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRExpr *expr);
+
+void fi_reg_add_pre_dirty_modifiers(toolData *tool_data,
+                                    IRDirty *di,
+                                    IRSB *sb);
 
 void fi_reg_set_occupancy(toolData *tool_data,
                           XArray *loads,

@@ -468,6 +468,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     if(st->Ist.Dirty.details->mFx != Ifx_None) {
                         INSTRUMENT_ACCESS(st->Ist.Dirty.details->mAddr);
                     }
+
+                    fi_reg_add_pre_dirty_modifiers(&tData, st->Ist.Dirty.details, sbOut);
                     break;
                 case Ist_CAS:                    
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->addr);
