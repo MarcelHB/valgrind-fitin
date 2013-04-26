@@ -11,5 +11,11 @@
         "output": "sample2",
         "expected": "a LT 1",
         "vg_params": "--mod-bit=0 --mod-load-time=1"
+    },{
+        "title": "Flipped value is written back to memory",
+        "files": ["sample3.c"],
+        "output": "sample3",
+        "expected": "3",
+        "vg_params": "--mod-bit=1 --mod-load-time=3 --persist-flip=yes"
     }]
 }
