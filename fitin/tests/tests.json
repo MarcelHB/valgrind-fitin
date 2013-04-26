@@ -1,0 +1,9 @@
+{
+    "tests": [{
+        "title": "Flipping a variable on n-th access",
+        "files": ["sample1.c"],
+        "output": "sample1",
+        "expected": "36",
+        "vg_params": "--mod-bit=5 --mod-load-time=3"
+    }]
+}

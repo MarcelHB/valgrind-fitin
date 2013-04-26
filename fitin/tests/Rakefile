@@ -1,0 +1,139 @@
+require "fileutils"
+require "json"
+require "stringio"
+require "tempfile"
+
+$LOAD_PATH << File.dirname(__FILE__)
+
+require "rake.config"
+
+$SUCCESS = 0
+
+#------------------------------------------------------------------------------
+task :tests => [:build_tests] do
+  test_data_records.each do |test|
+    run_test(test)
+  end
+
+  puts "[RESULT] #{$SUCCESS}/#{test_data_records.count} successful"
+end
+
+#------------------------------------------------------------------------------
+task :clean do
+  Rake::Task["clean_tests"].invoke
+end
+
+#------------------------------------------------------------------------------
+task :clean_tests do
+  test_data_records.each do |test|
+    test["files"].each do |c_file|
+      File.unlink(object_file(c_file))
+    end
+  end
+
+  FileUtils.rm_rf(local(TEST_BIN))
+  File.unlink(local(TEST_BUILT_FILE))
+end
+
+#------------------------------------------------------------------------------
+task :build_tests do
+  test_data_records.each do |test|
+    build_test(test)
+  end
+end
+
+#------------------------------------------------------------------------------
+def analyze_output(out, expected)
+  normalized = out.chop.gsub(/\n/, " ")
+
+  if normalized == expected
+    $SUCCESS += 1
+  else
+    puts "[ERROR] expected: #{expected}, got: #{normalized}"
+  end
+end
+
+#------------------------------------------------------------------------------
+def bin_output(name)
+  local(TEST_BIN, name)
+end
+
+#------------------------------------------------------------------------------
+def build_test(test)
+  unless skip_building?
+    test["files"].each do |src|
+      sh "#{CC} #{CFLAGS} -c #{src} -o #{object_file(src)}"
+    end
+
+    FileUtils.mkdir_p(local("bin"))
+
+    objects = test["files"].map { |src| object_file(src) }
+    sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
+
+    set_built_marker 
+  end
+end
+
+#------------------------------------------------------------------------------
+def local(*args)
+  File.join(File.dirname(__FILE__), args)
+end
+
+#------------------------------------------------------------------------------
+def object_file(c_file)
+  "#{File.basename(c_file, ".c")}.o"
+end
+
+#------------------------------------------------------------------------------
+def run_test(test)
+  puts "[RUN] #{test["title"]} (#{test["output"]})" 
+  # this will suppress more output of VG
+  log_file = Tempfile.new(test["output"])
+  out = ""
+
+  begin
+    silent do 
+      out = %x(#{VALGRIND} --log-file=#{log_file.path} #{VG_FLAGS} #{test["vg_params"]} #{bin_output(test["output"])} 2>&1)
+    end
+
+    if $?.exitstatus == 0
+      analyze_output(out, test["expected"])
+    else
+      puts "[ERROR] Program returned exit code #{$?.exitstatus}"
+    end
+  ensure
+    log_file.close
+    File.unlink(log_file)
+  end
+end
+
+#------------------------------------------------------------------------------
+def set_built_marker
+  sh "touch #{local(TEST_BUILT_FILE)}"
+end
+
+#------------------------------------------------------------------------------
+def silent(&block)
+  stdout = $stdout
+  stderr = $stderr
+  $stderr = $stdout = StringIO.new
+
+  begin
+    yield
+  ensure
+    $stdout = stdout
+    $stderr = stderr
+  end
+end
+
+#------------------------------------------------------------------------------
+def skip_building?
+  File.exists?(local(TEST_BUILT_FILE))
+end
+
+#------------------------------------------------------------------------------
+def test_data_records
+  data = JSON.parse(File.read(local(TEST_DATA)))
+
+  data["tests"]
+end
