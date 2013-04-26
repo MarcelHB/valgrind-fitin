@@ -5,5 +5,11 @@
         "output": "sample1",
         "expected": "36",
         "vg_params": "--mod-bit=5 --mod-load-time=3"
+    },{
+        "title": "Flipping causes different branching",
+        "files": ["sample2.c"],
+        "output": "sample2",
+        "expected": "a LT 1",
+        "vg_params": "--mod-bit=0 --mod-load-time=1"
     }]
 }
