@@ -121,7 +121,11 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 // ----------------------------------------------------------------------------
 inline void fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
-                                   IRExpr *expr) {
+                                   IRExpr *expr,
+                                   Bool *wait_for_resize,
+                                   LoadData **last_load_data) {
+    *wait_for_resize = False;
+
     if(expr->tag == Iex_Get) {
         Int index = OFFSET_TO_INDEX(expr->Iex.Get.offset);
 
@@ -134,16 +138,20 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
             if(temp == IRTemp_INVALID) {
                 return;
             }
-            
+
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-                LoadData new_load_data;
 
-                VG_(memcpy)(&new_load_data, load_data, sizeof(LoadData));
-                new_load_data.dest_temp = temp;
+                if(load_data->ty > expr->Iex.Get.ty) {
+                    *wait_for_resize = True;
+                    *last_load_data = load_data;
+                } else {
+                    LoadData new_load_data = *load_data;
+                    new_load_data.dest_temp = temp;
 
-                VG_(addToXA)(loads, &new_load_data);
-                VG_(sortXA)(loads);
+                    VG_(addToXA)(loads, &new_load_data);
+                    VG_(sortXA)(loads);
+                }
             }
         }
     }

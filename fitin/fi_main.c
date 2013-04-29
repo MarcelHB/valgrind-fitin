@@ -371,7 +371,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
-    Int next_st_action = 0;
+    FitinRegStmtAction next_st_action = SA_Nothing;
     LoadData last_load_data;
     XArray *loads = NULL, *replacements = NULL;
 
@@ -411,15 +411,23 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
 
         // FITIn-reg: do something in order to fullfill a previous statement
         if(next_st_action) {
-            if(st->tag == Ist_WrTmp &&
-                st->Ist.WrTmp.data->tag == Iex_Unop) {
-                last_load_data.dest_temp = st->Ist.WrTmp.tmp;
-                fi_reg_add_temp_load(loads, &last_load_data);
+            switch(next_st_action) {
+                case SA_WaitForResizeOnLoad:
+                case SA_WaitForResizeOnGet:
+                    if(st->tag == Ist_WrTmp &&
+                        st->Ist.WrTmp.data->tag == Iex_Unop) {
+                        last_load_data.dest_temp = st->Ist.WrTmp.tmp;
+                        last_load_data.ty = SIZE_SUFFIX(Ity_I);
+                        fi_reg_add_temp_load(loads, &last_load_data);
 
-                addStmtToIRSB(sbOut, st);
-                continue;
+                        addStmtToIRSB(sbOut, st);
+                        continue;
+                    }
+                    break;
+                default:
+                    break;
             }
-            next_st_action = 0;
+            next_st_action = SA_Nothing;
         }
 
         if (!st || st->tag == Ist_NoOp) {
@@ -462,7 +470,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         if(load_data->ty <= SIZE_SUFFIX(Ity_I)) {
                             if(load_data->ty < SIZE_SUFFIX(Ity_I)) {
                                 last_load_data = *load_data;
-                                next_st_action = 1;
+                                next_st_action = SA_WaitForResizeOnLoad;
                             } else {
                                 load_data->dest_temp = st->Ist.WrTmp.tmp;
                                 fi_reg_add_temp_load(loads, load_data);
@@ -470,7 +478,19 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                         } 
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(&tData, loads, st->Ist.WrTmp.data);
+                        Bool defer = False;
+                        LoadData *get_load_data = NULL;
+
+                        fi_reg_add_load_on_get(&tData, 
+                                               loads,
+                                               st->Ist.WrTmp.data,
+                                               &defer,
+                                               &get_load_data);
+
+                        if(defer) {
+                            next_st_action = SA_WaitForResizeOnGet;
+                            last_load_data = *get_load_data;
+                        }
                     }
                     break;
                 }
