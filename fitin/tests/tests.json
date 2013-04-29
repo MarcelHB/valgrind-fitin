@@ -17,5 +17,11 @@
         "output": "sample3",
         "expected": "3",
         "vg_params": "--mod-bit=1 --mod-load-time=3 --persist-flip=yes"
+    },{
+        "title": "Register tunneled load (x86-test only)",
+        "files": ["sample4.c"],
+        "output": "sample4",
+        "expected": "1",
+        "vg_params": "--mod-bit=1 --mod-load-time=3"
     }]
 }
