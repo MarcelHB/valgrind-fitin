@@ -50,7 +50,7 @@ end
 def analyze_output(out, expected)
   normalized = out.chop.gsub(/\n/, " ")
 
-  if normalized == expected
+  if !expected || normalized == expected
     $SUCCESS += 1
   else
     puts "[ERROR] expected: #{expected}, got: #{normalized}"

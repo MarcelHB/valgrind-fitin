@@ -24,10 +24,16 @@
         "expected": "2",
         "vg_params": "--mod-bit=1 --mod-load-time=3"
     },{
-        "title": "Reassign is not counting as instrumentable access",
+        "title": "Reassigning is not counting as instrumentable access",
         "files": ["sample5.c"],
         "output": "sample5",
         "expected": "2 3",
         "vg_params": "--mod-bit=0 --mod-load-time=2"
+    },{
+        "title": "MyDhrystone2",
+        "files": ["dhry_1.c", "dhry_2.c"],
+        "output": "dhry",
+        "expected": null,
+        "vg_params": "--mod-bit=4 --mod-load-time=5"
     }]
 }
