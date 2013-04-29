@@ -321,7 +321,6 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        Int memSize = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_2(mkIRExpr_HWord(td),
                              expr->Iex.Load.addr);
         di = unsafeIRDirty_0_N(2,
@@ -338,6 +337,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
             VG_(printf)("\nLoad instrumented: instAddr: 0x%08x\n", td->instAddr);
         }
 
+        load_data->ty = expr->Iex.Load.ty;
         load_data->addr = expr->Iex.Load.addr;
         load_data->state_list_index = di->tmp;
 
@@ -371,6 +371,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
+    Int next_st_action = 0;
+    LoadData last_load_data;
     XArray *loads = NULL, *replacements = NULL;
 
     /* We don't currently support this case. */
@@ -406,6 +408,19 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
 
     for (/*use current i*/; i < sbIn->stmts_used; i++) {
         st = sbIn->stmts[i];
+
+        // FITIn-reg: do something in order to fullfill a previous statement
+        if(next_st_action) {
+            if(st->tag == Ist_WrTmp &&
+                st->Ist.WrTmp.data->tag == Iex_Unop) {
+                last_load_data.dest_temp = st->Ist.WrTmp.tmp;
+                fi_reg_add_temp_load(loads, &last_load_data);
+
+                addStmtToIRSB(sbOut, st);
+                continue;
+            }
+            next_st_action = 0;
+        }
 
         if (!st || st->tag == Ist_NoOp) {
             continue;
@@ -444,8 +459,15 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
-                        load_data->dest_temp = st->Ist.WrTmp.tmp;
-                        fi_reg_add_temp_load(loads, load_data);
+                        if(load_data->ty <= SIZE_SUFFIX(Ity_I)) {
+                            if(load_data->ty < SIZE_SUFFIX(Ity_I)) {
+                                last_load_data = *load_data;
+                                next_st_action = 1;
+                            } else {
+                                load_data->dest_temp = st->Ist.WrTmp.tmp;
+                                fi_reg_add_temp_load(loads, load_data);
+                            }
+                        } 
                         VG_(free)(load_data);
                     } else {
                         fi_reg_add_load_on_get(&tData, loads, st->Ist.WrTmp.data);

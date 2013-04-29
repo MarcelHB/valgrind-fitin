@@ -81,7 +81,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 
         if(expr->tag == Iex_RdTmp) {
             Word first, last;
-            LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, NULL, 0 };
+            LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, Ity_INVALID, NULL, 0 };
 
             if(VG_(lookupXA)(loads, &key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
@@ -127,7 +127,8 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 
         if(index < GENERAL_PURPOSE_REGISTERS) {
             IRTemp temp = tool_data->occupancies[index].temp;
-            LoadData load_key = (LoadData) { temp, NULL, 0 };
+            LoadData load_key;
+            load_key.dest_temp = temp;
             Word first, last;
 
             if(temp == IRTemp_INVALID) {
@@ -222,8 +223,8 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
         IRStmt *st;
-        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
         LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
         IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
                                       IRExpr_RdTmp(load_data->dest_temp),
                                       IRExpr_RdTmp(load_data->state_list_index));

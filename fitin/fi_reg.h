@@ -27,6 +27,7 @@ typedef struct {
 
 typedef struct {
     IRTemp dest_temp;
+    IRType ty;
     IRExpr *addr; 
     IRTemp state_list_index;
 } LoadData;
