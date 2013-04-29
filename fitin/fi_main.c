@@ -414,8 +414,12 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
             switch(next_st_action) {
                 case SA_WaitForResizeOnLoad:
                 case SA_WaitForResizeOnGet:
+                    // This is guessing that Unop is one of those dozens
+                    // of size chaning functions.
                     if(st->tag == Ist_WrTmp &&
-                        st->Ist.WrTmp.data->tag == Iex_Unop) {
+                        st->Ist.WrTmp.data->tag == Iex_Unop &&
+                        typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp) == SIZE_SUFFIX(Ity_I)) {
+
                         last_load_data.dest_temp = st->Ist.WrTmp.tmp;
                         last_load_data.ty = SIZE_SUFFIX(Ity_I);
                         fi_reg_add_temp_load(loads, &last_load_data);
