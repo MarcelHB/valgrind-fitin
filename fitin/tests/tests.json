@@ -21,7 +21,13 @@
         "title": "Register tunneled load (x86-test only)",
         "files": ["sample4.c"],
         "output": "sample4",
-        "expected": "1",
+        "expected": "2",
         "vg_params": "--mod-bit=1 --mod-load-time=3"
+    },{
+        "title": "Reassign is not counting as instrumentable access",
+        "files": ["sample5.c"],
+        "output": "sample5",
+        "expected": "2 3",
+        "vg_params": "--mod-bit=0 --mod-load-time=2"
     }]
 }

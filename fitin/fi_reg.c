@@ -15,6 +15,8 @@ static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             Int nFx,
                                             IRSB *sb);
 
+static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
+
 static void replace_temps(XArray *replacements, IRExpr **expr);
 
 static IRTemp instrument_access_tmp(toolData *tool_data,
@@ -166,17 +168,45 @@ inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
     if(tool_data->injections == 0) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
-        if(state->relevant) {
-            tool_data->monLoadCnt++;
+        return flip_or_leave(tool_data, data, state);
+    }
 
-            if(!tool_data->goldenRun &&
-                tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-                tool_data->injections++;
-                data ^= (1 << tool_data->modBit);
+    return data;
+}
 
-                if(tool_data->write_back_flip) {
-                    *((UWord*)state->location) = data;
-                }
+// ----------------------------------------------------------------------------
+inline UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
+                                               UWord data,
+                                               Addr address,
+                                               Word state_list_index) {
+    tool_data->loads++;
+
+    if(tool_data->injections == 0) {
+        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+        if(state->location != address) {
+            return flip_or_leave(tool_data, data, state);
+        }
+    }
+
+    return data;
+}
+
+
+// ----------------------------------------------------------------------------
+static inline UWord flip_or_leave(toolData *tool_data,
+                                  UWord data,
+                                  LoadState *state) {
+    if(state->relevant) {
+        tool_data->monLoadCnt++;
+
+        if(!tool_data->goldenRun &&
+            tool_data->modMemLoadTime == tool_data->monLoadCnt) {
+            tool_data->injections++;
+            data ^= (1 << tool_data->modBit);
+
+            if(tool_data->write_back_flip) {
+                *((UWord*)state->location) = data;
             }
         }
     }
@@ -242,7 +272,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                            args);
         dirty->mAddr = load_data->addr;
         dirty->mSize = sizeof(UWord);
-        dirty->mFx = Ifx_Modify;
+        dirty->mFx = Ifx_Write;
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);
@@ -318,6 +348,65 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
             break;
         }
     }
+}
+
+// ----------------------------------------------------------------------------
+static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
+                                                    XArray *loads,
+                                                    IRTemp tmp,
+                                                    IRExpr *address,
+                                                    IRSB *sb) {
+    LoadData key = (LoadData) { tmp, 0, 0 };
+    Word first, last;
+
+    if(VG_(lookupXA)(loads, &key, &first, &last)) {
+        IRStmt *st;
+        LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
+        IRExpr **args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
+                                      IRExpr_RdTmp(load_data->dest_temp), 
+                                      address,
+                                      IRExpr_RdTmp(load_data->state_list_index));
+        IRDirty *dirty = unsafeIRDirty_0_N(0,
+                                           "fi_reg_flip_or_leave_before_store",
+                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
+                                           args);
+        dirty->mAddr = load_data->addr;
+        dirty->mSize = sizeof(UWord);
+        dirty->mFx = Ifx_Write;
+        dirty->tmp = new_temp;
+
+        st = IRStmt_Dirty(dirty);
+        addStmtToIRSB(sb, st);
+
+        return new_temp;
+    }
+
+    return IRTemp_INVALID;
+}
+
+// ----------------------------------------------------------------------------
+inline Bool fi_reg_instrument_store(toolData *tool_data,
+                                    XArray *loads,
+                                    XArray *replacements,
+                                    IRExpr **expr,
+                                    IRExpr *address,
+                                    IRSB *sb) {
+    if((*expr)->tag == Iex_RdTmp) {
+        add_replacement(replacements,
+                        (*expr)->Iex.RdTmp.tmp,
+                        instrument_access_tmp_on_store(
+                            tool_data,
+                            loads,
+                            (*expr)->Iex.RdTmp.tmp,
+                            address,
+                            sb));
+        replace_temps(replacements, expr);
+
+        return True;
+    }
+
+    return False;
 }
 
 // ----------------------------------------------------------------------------

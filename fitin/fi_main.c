@@ -496,7 +496,14 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 }
                 case Ist_Store:
                     INSTRUMENT_ACCESS(st->Ist.Store.addr);
-                    INSTRUMENT_ACCESS(st->Ist.Store.data);
+                    if(!fi_reg_instrument_store(&tData,
+                                                loads,
+                                                replacements,
+                                                &(st->Ist.Store.data),
+                                                st->Ist.Store.addr,
+                                                sbOut)) {
+                        INSTRUMENT_ACCESS(st->Ist.Store.data);
+                    }
                     break;
                 case Ist_Dirty:
                     INSTRUMENT_ACCESS(st->Ist.Dirty.details->guard);

@@ -78,4 +78,11 @@ void fi_reg_instrument_access(toolData *tool_data,
                               IRSB *sb,
                               Bool replace_only);
 
+Bool fi_reg_instrument_store(toolData *tool_data,
+                             XArray *loads,
+                             XArray *replacements,
+                             IRExpr **expr,
+                             IRExpr *address,
+                             IRSB *sb);
+
 #endif
