@@ -35,21 +35,7 @@ typedef enum {
     //MT_FILTFUNCABOVE
 } filterType;
 
-#if __x86_64__
-#define GENERAL_PURPOSE_REGISTERS 16
-#else
-#define GENERAL_PURPOSE_REGISTERS 8
-#endif
-
-// FITIn-reg
-typedef struct {
-    // the temp that has been PUT to a register
-    IRTemp temp;
-    // relevancy of registers
-    Bool relevant;
-    // original location of the data
-    Addr location
-} OccupancyData;
+#define GUEST_STATE_SIZE sizeof(VexGuestArchState)
 
 // This is a data structure to store tool specific data.
 typedef struct _toolData {
@@ -83,8 +69,12 @@ typedef struct _toolData {
     Bool write_back_flip;
     // FITIn-reg: runtime list allowing lookup of original address
     XArray *load_states;
-    // FITIn-reg: occupancy list
-    OccupancyData occupancies[GENERAL_PURPOSE_REGISTERS];
+    // FITIn-reg: flag whether the following lists are already reserved
+    Bool register_lists_loaded;
+    // FITIn-reg: register offset -> current temp
+    IRTemp *reg_temp_occupancies;
+    // FITIn-reg: register offset -> origin
+    Addr *reg_origins;
 } toolData;
 
 #endif /* __FITIN_H */

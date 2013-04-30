@@ -4,11 +4,12 @@
 #include "pub_tool_xarray.h"
 #include "pub_tool_machine.h"
 #include "pub_tool_libcbase.h"
+#include "pub_tool_libcassert.h"
 #include "pub_tool_debuginfo.h"
 
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
-static void add_modifier_for_register(toolData *tool_data, Int index, IRSB *sb);
+static void add_modifier_for_register(toolData *tool_data, Int offset, IRSB *sb);
 
 static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             IRDirty *di,
@@ -18,6 +19,11 @@ static void analyze_dirty_and_add_modifiers(toolData *tool_data,
 static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
 
 static void replace_temps(XArray *replacements, IRExpr **expr);
+
+static void update_reg_origins(toolData *tool_data, 
+                               Int offset,
+                               SizeT size,
+                               Addr origin_offset);
 
 static IRTemp instrument_access_tmp(toolData *tool_data,
                                     XArray *loads,
@@ -48,24 +54,34 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
 }
 
 // ----------------------------------------------------------------------------
-static void VEX_REGPARM(3) fi_reg_set_occupancy_origin(toolData *tool_data, 
-                                                       Int index,
-                                                       Word state_list_index) {
+static void fi_reg_set_occupancy_origin(toolData *tool_data, 
+                                        Int offset,
+                                        SizeT size,
+                                        Word state_list_index) {
     if(tool_data->injections == 0) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-        tool_data->occupancies[index].location = state->location;
-        tool_data->occupancies[index].relevant = True;
+        update_reg_origins(tool_data, offset, size, state->location);
     } else {
-        tool_data->occupancies[index].relevant = False;
-        tool_data->occupancies[index].location = NULL;
+        update_reg_origins(tool_data, offset, size, NULL);
     }
 }
 
 // ----------------------------------------------------------------------------
-static void VEX_REGPARM(2) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
-                                                               Int index) {
-    tool_data->occupancies[index].relevant = False;
-    tool_data->occupancies[index].location = NULL;
+static void VEX_REGPARM(3) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
+                                                               Int offset,
+                                                               SizeT size) {
+    update_reg_origins(tool_data, offset, size, NULL);
+}
+
+// ----------------------------------------------------------------------------
+static inline void update_reg_origins(toolData *tool_data, 
+                                      Int offset,
+                                      SizeT size,
+                                      Addr origin_offset) {
+    Int i = 0;
+    for(; i < size; ++i) {
+        tool_data->reg_origins[offset+i] = origin_offset + i;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -74,50 +90,62 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
                                  Int offset,
                                  IRExpr *expr,
                                  IRSB *sb) {
-    Int index = OFFSET_TO_INDEX(offset);
+    Bool valid_origin = False;
+    IRStmt *st;
+    IRExpr **args;
+    IRDirty *dirty;
+    SizeT size = 0;
 
-    if(index < GENERAL_PURPOSE_REGISTERS) {
-        Bool valid_origin = False;
-        IRStmt *st;
-        IRExpr **args;
-        IRDirty *dirty;
+    if(expr->tag == Iex_RdTmp) {
+        Word first, last;
+        LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, Ity_INVALID, NULL, 0 };
 
-        if(expr->tag == Iex_RdTmp) {
-            Word first, last;
-            LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, Ity_INVALID, NULL, 0 };
+        IRType ty = typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp);
+        size = sizeofIRType(ty);
 
-            if(VG_(lookupXA)(loads, &key, &first, &last)) {
-                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+        if(VG_(lookupXA)(loads, &key, &first, &last)) {
+            LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
 
-                args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
-                                       mkIRExpr_HWord(index),
-                                       IRExpr_RdTmp(load_data->state_list_index));
-                dirty = unsafeIRDirty_0_N(3,
-                                           "fi_reg_set_occupancy_origin",
-                                           VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
-                                           args);
+            args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
+                                   mkIRExpr_HWord(offset),
+                                   mkIRExpr_HWord(size),
+                                   IRExpr_RdTmp(load_data->state_list_index));
+            dirty = unsafeIRDirty_0_N(0,
+                                      "fi_reg_set_occupancy_origin",
+                                      VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
+                                      args);
 
-                st = IRStmt_Dirty(dirty);
-                addStmtToIRSB(sb, st);
+            st = IRStmt_Dirty(dirty);
+            addStmtToIRSB(sb, st);
 
-                tool_data->occupancies[index].temp = expr->Iex.RdTmp.tmp;
-                valid_origin = True;
+            tool_data->reg_temp_occupancies[offset] = expr->Iex.RdTmp.tmp;
+            valid_origin = True;
+        }
+    }
+
+    // We need to do it this way, IRTemp_INVALID cannot be passed.
+    if(!valid_origin) {
+        if(size == 0) {
+            if(expr->tag == Iex_Const) {
+                size = sizeof(expr->Iex.Const.con->Ico);
+            } else {
+                // If this ever happens, we need a more general way
+                // to find the size written here.
+                tl_assert(0);
             }
         }
 
-        // We need to do it this way, IRTemp_INVALID cannot be passed.
-        if(!valid_origin) {
-            tool_data->occupancies[index].temp = IRTemp_INVALID;
+        tool_data->reg_temp_occupancies[offset] = IRTemp_INVALID;
 
-            args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
-                                 mkIRExpr_HWord(index));
-            dirty = unsafeIRDirty_0_N(2,
-                                      "fi_reg_set_occupancy_origin_invalid",
-                                      VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin_invalid),
-                                      args);
-            st = IRStmt_Dirty(dirty);
-            addStmtToIRSB(sb, st);
-        }
+        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+                             mkIRExpr_HWord(offset),
+                             mkIRExpr_HWord(size));
+        dirty = unsafeIRDirty_0_N(3,
+                                  "fi_reg_set_occupancy_origin_invalid",
+                                  VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin_invalid),
+                                  args);
+        st = IRStmt_Dirty(dirty);
+        addStmtToIRSB(sb, st);
     }
 }
 
@@ -126,27 +154,24 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
                                    IRExpr *expr) {
     if(expr->tag == Iex_Get) {
-        Int index = OFFSET_TO_INDEX(expr->Iex.Get.offset);
+        Int offset = expr->Iex.Get.offset;
+        IRTemp temp = tool_data->reg_temp_occupancies[offset];
+        LoadData load_key;
+        load_key.dest_temp = temp;
+        Word first, last;
 
-        if(index < GENERAL_PURPOSE_REGISTERS) {
-            IRTemp temp = tool_data->occupancies[index].temp;
-            LoadData load_key;
-            load_key.dest_temp = temp;
-            Word first, last;
+        if(temp == IRTemp_INVALID) {
+            return;
+        }
 
-            if(temp == IRTemp_INVALID) {
-                return;
-            }
+        if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
+            LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+            LoadData new_load_data = *load_data;
 
-            if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
-                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-                LoadData new_load_data = *load_data;
+            new_load_data.dest_temp = temp;
 
-                new_load_data.dest_temp = temp;
-
-                VG_(addToXA)(loads, &new_load_data);
-                VG_(sortXA)(loads);
-            }
+            VG_(addToXA)(loads, &new_load_data);
+            VG_(sortXA)(loads);
         }
     }
 }
@@ -334,7 +359,6 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                                                 loads, \
                                                                 replacements, \
                                                                 &(expr), \
-                                                                sb_in, \
                                                                 sb, \
                                                                 replace_only);
 
@@ -343,7 +367,6 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                       XArray *loads,
                                       XArray *replacements,
                                       IRExpr **expr,
-                                      IRSB *sb_in,
                                       IRSB *sb,
                                       Bool replace_only) {
     switch((*expr)->tag) {
@@ -358,7 +381,7 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                     tool_data,
                                     loads,
                                     (*expr)->Iex.RdTmp.tmp,
-                                    typeOfIRTemp(sb_in->tyenv, (*expr)->Iex.RdTmp.tmp),
+                                    typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
                                     sb));
             }
             replace_temps(replacements, expr);
@@ -455,7 +478,6 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
                                     XArray *replacements,
                                     IRExpr **expr,
                                     IRExpr *address,
-                                    IRSB *sb_in,
                                     IRSB *sb) {
     if((*expr)->tag == Iex_RdTmp) {
         add_replacement(replacements,
@@ -465,7 +487,7 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
                             loads,
                             (*expr)->Iex.RdTmp.tmp,
                             address,
-                            typeOfIRTemp(sb_in->tyenv, (*expr)->Iex.RdTmp.tmp),
+                            typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
                             sb));
         replace_temps(replacements, expr);
 
@@ -516,8 +538,6 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                                    IRDirty *st,
                                                    Int nFx,
                                                    IRSB *sb) {
-    Bool relevant[GENERAL_PURPOSE_REGISTERS] = { False };
-
     // just some variables to deal with anonymous type st->fxState[i]
     UShort offset = st->fxState[nFx].offset, 
            size = st->fxState[nFx].offset;
@@ -531,16 +551,6 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
         Int j = 0;
 
         for(; j < size; ++j) {
-            Int index = OFFSET_TO_INDEX(start_offset + j);
-
-            if(index < GENERAL_PURPOSE_REGISTERS) {
-                relevant[index] = True;
-            }
-        }
-    }
-
-    for(i = 0; i < GENERAL_PURPOSE_REGISTERS; ++i) {
-        if(relevant[i]) {
             add_modifier_for_register(tool_data, i, sb);
         }
     }
@@ -549,23 +559,22 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
 // ----------------------------------------------------------------------------
 static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
                                                                    toolData *tool_data,
-                                                                   Int index) {
-    if(tool_data->occupancies[index].relevant) {
-        Int offset = INDEX_TO_OFFSET(index);
+                                                                   Int offset) {
+    if(tool_data->reg_origins[offset] != NULL) {
         UWord data = *(UWord*)(((UChar*) bp) + offset);
 
         data = fi_reg_flip_or_leave_no_state_list(tool_data,
                                                   data,
-                                                  tool_data->occupancies[index].location);
+                                                  tool_data->reg_origins[offset]);
         *(UWord*)(((UChar*) bp) + offset) = data;
     }
 }
 
 // ----------------------------------------------------------------------------
-static inline void add_modifier_for_register(toolData *tool_data, Int index, IRSB *sb) {
+static inline void add_modifier_for_register(toolData *tool_data, Int offset, IRSB *sb) {
     IRStmt *st;
     IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
-                                  mkIRExpr_HWord(index));
+                                  mkIRExpr_HWord(offset));
 
     IRDirty *di = unsafeIRDirty_0_N(2,
                                    "fi_reg_flip_or_leave_no_state_list_wrap",
@@ -573,8 +582,8 @@ static inline void add_modifier_for_register(toolData *tool_data, Int index, IRS
                                     args);
     di->nFxState = 1;
     di->fxState[0].fx = Ifx_Modify;
-    di->fxState[0].offset = INDEX_TO_OFFSET(index);
-    di->fxState[0].size = SIZE_SUFFIX() / 8;
+    di->fxState[0].offset = offset;
+    di->fxState[0].size = 1;
     di->fxState[0].nRepeats = 0;
     di->fxState[0].repeatLen = 0;
     di->needsBBP = True;

@@ -122,10 +122,7 @@ static void initTData() {
                                    "tData.loadStates.init",
                                    VG_(free),
                                    sizeof(LoadState));
-
-    for(; i < GENERAL_PURPOSE_REGISTERS; ++i) {
-        tData.occupancies[i] = (OccupancyData) { IRTemp_INVALID, False, NULL };
-    }
+    tData.register_lists_loaded = False;
 }
 
 /* Check whether the instruction at 'instAddr' is in the function with the name
@@ -347,11 +344,17 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     return NULL;
 }
 
+// ----------------------------------------------------------------------------
+static inline void initialize_register_lists(Int size) {
+    tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
+    tData.reg_temp_occupancies =
+        VG_(malloc)("fi.init.reg_temp_occupancies", sizeof(IRTemp) * size);
+}
+
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
                                                          loads,\
                                                          replacements,\
                                                          &(expr), \
-                                                         sbIn, \
                                                          sbOut, \
                                                          False)
 
@@ -359,7 +362,6 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
                                                            loads,\
                                                            replacements,\
                                                            &(expr), \
-                                                           sbIn, \
                                                            sbOut, \
                                                            True)
 static
@@ -379,6 +381,10 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     /* We don't currently support this case. */
     if (gWordTy != hWordTy) {
         VG_(tool_panic)("host/guest word size mismatch");
+    }
+    
+    if(!tData.register_lists_loaded) {
+        initialize_register_lists(layout->total_sizeB);
     }
 
     // FITIn-reg: the list of loads
@@ -438,7 +444,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                                          sbOut);
                     break;
                 case Ist_PutI:
-                    // FITIn-reg, needs further analysis
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->ix);
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
@@ -466,7 +471,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                                                 replacements,
                                                 &(st->Ist.Store.data),
                                                 st->Ist.Store.addr,
-                                                sbIn,
                                                 sbOut)) {
                         INSTRUMENT_ACCESS(st->Ist.Store.data);
                     }
@@ -558,6 +562,11 @@ static void fi_fini(Int exitcode) {
 
     VG_(deleteXA)(tData.monitorables);
     VG_(deleteXA)(tData.load_states);
+
+    if(tData.register_lists_loaded) {
+        VG_(free)(tData.reg_origins);
+        VG_(free)(tData.reg_temp_occupancies);
+    }
 
     VG_(printf)("Totals:\n");
     VG_(printf)("Overall memory loads: %d\n", tData.loads);
@@ -655,17 +664,14 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
                                PtrdiffT offset, SizeT size) {
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
-        Int index = OFFSET_TO_INDEX(offset);
 
-        if(index < GENERAL_PURPOSE_REGISTERS) {
-            if(tData.occupancies[index].relevant) {
-                UWord data; 
-                VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
-                data = fi_reg_flip_or_leave_no_state_list(&tData,
-                                                          data,
-                                                          tData.occupancies[index].location);
-                VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
-            }
+        if(tData.reg_origins[offset] != NULL) {
+            UWord data; 
+            VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
+            data = fi_reg_flip_or_leave_no_state_list(&tData,
+                                                      data,
+                                                      tData.reg_origins[offset]);
+            VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
         }
     }
 }
