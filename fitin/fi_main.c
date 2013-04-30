@@ -436,12 +436,14 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 case Ist_MBE:
                     break;
                 case Ist_Put:
-                    JUST_REPLACE_ACCESS(st->Ist.Put.data);
-                    fi_reg_set_occupancy(&tData,
-                                         loads,
-                                         st->Ist.Put.offset,
-                                         st->Ist.Put.data,
-                                         sbOut);
+                    if(st->Ist.Put.offset != layout->offset_IP) {
+                        JUST_REPLACE_ACCESS(st->Ist.Put.data);
+                        fi_reg_set_occupancy(&tData,
+                                             loads,
+                                             st->Ist.Put.offset,
+                                             st->Ist.Put.data,
+                                             sbOut);
+                    }
                     break;
                 case Ist_PutI:
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->ix);
