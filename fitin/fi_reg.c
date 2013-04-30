@@ -127,7 +127,8 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
     if(!valid_origin) {
         if(size == 0) {
             if(expr->tag == Iex_Const) {
-                size = sizeof(expr->Iex.Const.con->Ico);
+                IRType ty = typeOfIRConst(expr->Iex.Const.con);
+                size = sizeofIRType(ty);
             } else {
                 // If this ever happens, we need a more general way
                 // to find the size written here.
