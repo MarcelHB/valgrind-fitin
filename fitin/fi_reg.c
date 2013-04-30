@@ -125,6 +125,11 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 
     // We need to do it this way, IRTemp_INVALID cannot be passed.
     if(!valid_origin) {
+        // We do not need to update INVALID by INVALID
+        if(tool_data->reg_temp_occupancies[offset] == IRTemp_INVALID) {
+            return; 
+        }
+
         if(size == 0) {
             if(expr->tag == Iex_Const) {
                 IRType ty = typeOfIRConst(expr->Iex.Const.con);
