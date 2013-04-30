@@ -347,8 +347,12 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 // ----------------------------------------------------------------------------
 static inline void initialize_register_lists(Int size) {
     tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
+    VG_(memset)(tData.reg_origins, NULL, size);
+
     tData.reg_temp_occupancies =
         VG_(malloc)("fi.init.reg_temp_occupancies", sizeof(IRTemp) * size);
+    // see IRTemp_INVALID
+    VG_(memset)(tData.reg_temp_occupancies, 0xFF, size);
 }
 
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
