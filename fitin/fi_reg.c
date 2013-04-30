@@ -22,6 +22,7 @@ static void replace_temps(XArray *replacements, IRExpr **expr);
 static IRTemp instrument_access_tmp(toolData *tool_data,
                                     XArray *loads,
                                     IRTemp tmp,
+                                    IRType ty,
                                     IRSB *sb);
 
 // ----------------------------------------------------------------------------
@@ -123,11 +124,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 // ----------------------------------------------------------------------------
 inline void fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
-                                   IRExpr *expr,
-                                   Bool *wait_for_resize,
-                                   LoadData **last_load_data) {
-    *wait_for_resize = False;
-
+                                   IRExpr *expr) {
     if(expr->tag == Iex_Get) {
         Int index = OFFSET_TO_INDEX(expr->Iex.Get.offset);
 
@@ -143,17 +140,12 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+                LoadData new_load_data = *load_data;
 
-                if(load_data->ty > expr->Iex.Get.ty) {
-                    *wait_for_resize = True;
-                    *last_load_data = load_data;
-                } else {
-                    LoadData new_load_data = *load_data;
-                    new_load_data.dest_temp = temp;
+                new_load_data.dest_temp = temp;
 
-                    VG_(addToXA)(loads, &new_load_data);
-                    VG_(sortXA)(loads);
-                }
+                VG_(addToXA)(loads, &new_load_data);
+                VG_(sortXA)(loads);
             }
         }
     }
@@ -251,9 +243,50 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a) {
 }
 
 // ----------------------------------------------------------------------------
+static inline IRTemp insert_size_widener(IRTemp tmp, IRType ty, IRSB *sb) {
+    IROp op = Iop_INVALID;
+
+    switch(ty) {
+        case Ity_I8:
+            op = SIZE_SUFFIX(Iop_8Uto);
+            break;
+        case Ity_I16:
+            op = SIZE_SUFFIX(Iop_16Uto);
+            break;
+#ifdef __x86-64__
+        case Ity_I32:
+            op = SIZE_SUFFIX(Iop_32Uto);
+            break;
+#endif
+        default:
+            break;
+    }
+
+    if(op != Iop_INVALID) {
+        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
+        IRStmt *st = IRStmt_WrTmp(
+                                    new_temp,
+                                    IRExpr_Unop(
+                                        op,
+                                        IRExpr_RdTmp(
+                                            tmp
+                                        )
+                                    )
+                                 );
+
+        addStmtToIRSB(sb, st);
+
+        return new_temp;
+    }
+
+    return IRTemp_INVALID;
+}
+
+// ----------------------------------------------------------------------------
 static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                            XArray *loads,
                                            IRTemp tmp,
+                                           IRType ty,
                                            IRSB *sb) {
 
     LoadData key = (LoadData) { tmp, 0, 0 };
@@ -261,15 +294,28 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
         IRStmt *st;
-        LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
-        IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
-                                      IRExpr_RdTmp(load_data->dest_temp),
-                                      IRExpr_RdTmp(load_data->state_list_index));
-        IRDirty *dirty = unsafeIRDirty_0_N(3,
-                                           "fi_reg_flip_or_leave",
-                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
-                                           args);
+        LoadData *load_data;
+        IRTemp new_temp, access_temp = tmp;
+        IRExpr **args;
+        IRDirty *dirty;
+
+        if(ty != SIZE_SUFFIX(Ity_I)) {
+            access_temp = insert_size_widener(tmp, ty, sb);
+            
+            if(access_temp == IRTemp_INVALID) {
+                return IRTemp_INVALID;
+            }
+        }
+            
+        new_temp = newIRTemp(sb->tyenv, ty);
+        load_data = (LoadData*) VG_(indexXA)(loads, first);
+        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+                             IRExpr_RdTmp(access_temp),
+                             IRExpr_RdTmp(load_data->state_list_index));
+        dirty = unsafeIRDirty_0_N(3,
+                                  "fi_reg_flip_or_leave",
+                                  VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
+                                  args);
         dirty->mAddr = load_data->addr;
         dirty->mSize = sizeof(UWord);
         dirty->mFx = Ifx_Write;
@@ -288,6 +334,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                                                 loads, \
                                                                 replacements, \
                                                                 &(expr), \
+                                                                sb_in, \
                                                                 sb, \
                                                                 replace_only);
 
@@ -296,6 +343,7 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                       XArray *loads,
                                       XArray *replacements,
                                       IRExpr **expr,
+                                      IRSB *sb_in,
                                       IRSB *sb,
                                       Bool replace_only) {
     switch((*expr)->tag) {
@@ -310,6 +358,7 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                     tool_data,
                                     loads,
                                     (*expr)->Iex.RdTmp.tmp,
+                                    typeOfIRTemp(sb_in->tyenv, (*expr)->Iex.RdTmp.tmp),
                                     sb));
             }
             replace_temps(replacements, expr);
@@ -355,22 +404,37 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
                                                     XArray *loads,
                                                     IRTemp tmp,
                                                     IRExpr *address,
+                                                    IRType ty,
                                                     IRSB *sb) {
     LoadData key = (LoadData) { tmp, 0, 0 };
     Word first, last;
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
         IRStmt *st;
-        LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
-        IRExpr **args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
-                                      IRExpr_RdTmp(load_data->dest_temp), 
-                                      address,
-                                      IRExpr_RdTmp(load_data->state_list_index));
-        IRDirty *dirty = unsafeIRDirty_0_N(0,
-                                           "fi_reg_flip_or_leave_before_store",
-                                           VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
-                                           args);
+        LoadData *load_data;
+        IRTemp new_temp, access_temp = tmp;
+        IRExpr **args;
+        IRDirty *dirty;
+                
+        if(ty != SIZE_SUFFIX(Ity_I)) {
+            access_temp = insert_size_widener(tmp, ty, sb);
+            
+            if(access_temp == IRTemp_INVALID) {
+                return IRTemp_INVALID;
+            }
+        }  
+                
+                
+        new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
+        load_data = (LoadData*) VG_(indexXA)(loads, first);
+        args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
+                             IRExpr_RdTmp(access_temp), 
+                             address,
+                             IRExpr_RdTmp(load_data->state_list_index));
+        dirty = unsafeIRDirty_0_N(0,
+                                  "fi_reg_flip_or_leave_before_store",
+                                   VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
+                                   args);
         dirty->mAddr = load_data->addr;
         dirty->mSize = sizeof(UWord);
         dirty->mFx = Ifx_Write;
@@ -391,6 +455,7 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
                                     XArray *replacements,
                                     IRExpr **expr,
                                     IRExpr *address,
+                                    IRSB *sb_in,
                                     IRSB *sb) {
     if((*expr)->tag == Iex_RdTmp) {
         add_replacement(replacements,
@@ -400,6 +465,7 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
                             loads,
                             (*expr)->Iex.RdTmp.tmp,
                             address,
+                            typeOfIRTemp(sb_in->tyenv, (*expr)->Iex.RdTmp.tmp),
                             sb));
         replace_temps(replacements, expr);
 

@@ -37,19 +37,11 @@ typedef struct {
     IRTemp new_temp;
 } ReplaceData;
 
-typedef enum {
-   SA_Nothing = 0,
-   SA_WaitForResizeOnLoad,
-   SA_WaitForResizeOnGet
-} FitinRegStmtAction;
-
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
 void fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
-                            IRExpr *expr,
-                            Bool *wait_for_resize,
-                            LoadData **last_load_data);
+                            IRExpr *expr);
 
 void fi_reg_add_pre_dirty_modifiers(toolData *tool_data,
                                     IRDirty *di,
@@ -75,6 +67,7 @@ void fi_reg_instrument_access(toolData *tool_data,
                               XArray *loads,
                               XArray *replacements,
                               IRExpr **expr,
+                              IRSB *sb_in,
                               IRSB *sb,
                               Bool replace_only);
 
@@ -83,6 +76,7 @@ Bool fi_reg_instrument_store(toolData *tool_data,
                              XArray *replacements,
                              IRExpr **expr,
                              IRExpr *address,
+                             IRSB *sb_in,
                              IRSB *sb);
 
 #endif
