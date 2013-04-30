@@ -19,6 +19,7 @@
         "vg_params": "--mod-bit=1 --mod-load-time=3 --persist-flip=yes"
     },{
         "title": "Register tunneled load (x86-test only)",
+        "cflags": "-m32",
         "files": ["sample4.c"],
         "output": "sample4",
         "expected": "2",

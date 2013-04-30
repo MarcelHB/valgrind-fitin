@@ -65,7 +65,7 @@ end
 #------------------------------------------------------------------------------
 def build_test(test)
   test["files"].each do |src|
-    sh "#{CC} #{CFLAGS} -c #{src} -o #{object_file(src)}"
+    sh "#{CC} #{CFLAGS} #{test["cflags"]} -c #{src} -o #{object_file(src)}"
   end
 
   FileUtils.mkdir_p(local("bin"))
