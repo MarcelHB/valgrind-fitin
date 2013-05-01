@@ -31,10 +31,16 @@
         "expected": "2 3",
         "vg_params": "--mod-bit=0 --mod-load-time=2"
     },{
-        "title": "MyDhrystone2",
+        "title": "MyDhrystone2, not crashing",
         "files": ["dhry_1.c", "dhry_2.c"],
         "output": "dhry",
         "expected": null,
         "vg_params": "--mod-bit=4 --mod-load-time=5"
+    },{
+        "title": "Deals with repeating variables on stack",
+        "files": ["sample6.c"],
+        "output": "sample6",
+        "expected": "4",
+        "vg_params": "--mod-bit=1 --mod-load-time=10 --fnname=just_do_it"
     }]
 }

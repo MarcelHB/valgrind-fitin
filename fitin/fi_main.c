@@ -442,6 +442,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                 case Ist_Put:
                     if(st->Ist.Put.offset != layout->offset_IP) {
                         JUST_REPLACE_ACCESS(st->Ist.Put.data);
+
                         fi_reg_set_occupancy(&tData,
                                              loads,
                                              st->Ist.Put.offset,
@@ -591,7 +592,6 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     switch(args[0]) {
         case VG_USERREQ__MON_VAR:
         case VG_USERREQ__MON_MEM: {
-
             //Initialize and add monitorable to list
             Monitorable mon;
             mon.monAddr = args[1];
@@ -607,23 +607,18 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
             Word first = 0, last = 0;
 
             if(VG_(lookupXA)(tData.monitorables, &mon, &first, &last)) {
-                Word i;
-                Monitorable *moni;
-                for(i = first; i <= last; i++) {
-                    moni = (Monitorable *)VG_(indexXA)(tData.monitorables, i);
-                    tl_assert(moni != NULL);
-                    if(moni->monValid) {
-                        continue;
-                    }
-                }
-                if(!moni->monValid) {
-                    VG_(addToXA)(tData.monitorables, &mon);
+                Word i = first;
+                Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+                
+                other_mon->monValid = True;
+
+                if(args[2] > other_mon->monSize) {
+                    other_mon->monSize = args[2];
                 }
             } else {
                 VG_(addToXA)(tData.monitorables, &mon);
+                VG_(sortXA)(tData.monitorables);
             }
-
-            VG_(sortXA)(tData.monitorables);
 
             break;
         }
