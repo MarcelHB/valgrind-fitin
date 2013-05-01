@@ -57,7 +57,7 @@ UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
                                          UWord data,
                                          Addr a);
 
-void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a);
+void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a, SizeT size);
 
 void fi_reg_instrument_access(toolData *tool_data,
                               XArray *loads,

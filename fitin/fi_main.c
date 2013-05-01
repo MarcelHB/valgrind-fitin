@@ -683,29 +683,20 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
 // ----------------------------------------------------------------------------
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
                                Addr a, SizeT size) {
+
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
         Word first, last;
-        Bool monitored_area = monitorInst(tData.instAddr);
         Int mem_offset = 0;
 
-        if(monitored_area) { 
-            for(; mem_offset <= size; ++mem_offset) {
-                Monitorable key;
-                key.monAddr = a + mem_offset;
+        for(; mem_offset <= size; ++mem_offset) {
+            Monitorable key;
+            key.monAddr = a + mem_offset;
 
-                if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
-                    Int i = 0;
-                    for(; i <= last; ++i) {
-                        Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+            if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
+                Int i = 0;
+                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
 
-                        if(!mon->monValid) {
-                            continue;
-                        }
-
-                        fi_reg_flip_or_leave_mem(&tData, a);
-                        break;
-                    }
-                }
+                fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
             }
         }
     }

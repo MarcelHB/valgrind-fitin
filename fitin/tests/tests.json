@@ -42,5 +42,11 @@
         "output": "sample6",
         "expected": "4",
         "vg_params": "--mod-bit=1 --mod-load-time=10 --fnname=just_do_it"
+    },{
+        "title": "Flips on memory syscall with offset",
+        "files": ["sample7.c"],
+        "output": "sample7",
+        "expected": "4",
+        "vg_params": "--mod-bit=2 --mod-load-time=2"
     }]
 }

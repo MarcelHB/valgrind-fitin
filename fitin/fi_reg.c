@@ -16,7 +16,11 @@ static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             Int nFx,
                                             IRSB *sb);
 
+static UChar flip_byte_at_bit(UChar byte, UChar bit);
+
 static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
+
+static UChar* get_destination_address(Addr a, SizeT size, UChar bit);
 
 static void replace_temps(XArray *replacements, IRExpr **expr);
 
@@ -259,18 +263,37 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
 }
 
 // ----------------------------------------------------------------------------
-inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a) {
+inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-        UWord data = *((UWord*) a);
-        data ^= (1 << tool_data->modBit);
-        *((Word*) a) = data;
+        UChar *addr = get_destination_address(a, size, tool_data->modBit);
+
+        if(addr != NULL) {
+            *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+        }
 
         tool_data->injections++;
     }
+}
+
+// ----------------------------------------------------------------------------
+static inline UChar* get_destination_address(Addr a, SizeT size, UChar bit) {
+    UChar bit_size = size * 8; 
+
+    if(bit < bit_size) {
+        UChar byte = bit / 8;
+        return ((UChar*) a) + byte;
+    }
+
+    return NULL;
+}
+
+// ----------------------------------------------------------------------------
+static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
+    return byte ^ (1 << bit); 
 }
 
 // ----------------------------------------------------------------------------
