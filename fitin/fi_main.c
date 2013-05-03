@@ -1,6 +1,6 @@
 
 /*--------------------------------------------------------------------*/
-/*--- FITIn: The fault inejction tool                    fi_main.c ---*/
+/*--- FITIn: The fault injection tool                    fi_main.c ---*/
 /*--------------------------------------------------------------------*/
 
 /*
@@ -701,7 +701,9 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
                 Int i = 0;
                 Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
 
-                fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
+                if(mon->monValid) {
+                    fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
+                }
             }
         }
     }
@@ -719,8 +721,8 @@ static void fi_pre_clo_init(void) {
     VG_(details_version)         (NULL);
     VG_(details_description)     ("A simple fault injection tool");
     VG_(details_copyright_author)(
-        "Copyright (C) 2012, and GNU GPL'd, by Clemens Terasa.");
-    VG_(details_bug_reports_to)  ("BLmadman@gmx.de");
+        "Copyright (C) 2013, and GNU GPL'd, by Clemens Terasa, Marcel Heing-Becker");
+    VG_(details_bug_reports_to)  ("https://github.com/MarcelHB/valgrind-fitin/issues");
 
     VG_(details_avg_translation_sizeB) ( 275 );
 
