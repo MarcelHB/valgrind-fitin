@@ -75,6 +75,8 @@ typedef struct _toolData {
     IRTemp *reg_temp_occupancies;
     // FITIn-reg: register offset -> origin
     Addr *reg_origins;
+    // FITIn-reg: loaded and original sizes
+    SizeT *reg_load_sizes;
 } toolData;
 
 #endif /* __FITIN_H */

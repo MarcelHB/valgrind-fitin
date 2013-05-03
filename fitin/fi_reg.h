@@ -19,6 +19,8 @@
 typedef struct {
     Bool relevant;
     Addr location;
+    SizeT size;
+    SizeT full_size;
 } LoadState;
 
 typedef struct {
@@ -55,7 +57,7 @@ Int fi_reg_compare_replacements(void *l1, void *l2);
 
 UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
                                          UWord data,
-                                         Addr a);
+                                         Int offset);
 
 void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a, SizeT size);
 

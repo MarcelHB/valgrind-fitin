@@ -22,7 +22,18 @@ static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
 
 static UChar* get_destination_address(Addr a, SizeT size, UChar bit);
 
+static void optional_memory_writing(toolData *tool_data,
+                                    UWord data,
+                                    SizeT full_size,
+                                    Addr location,
+                                    Bool data_flipped);
+
 static void replace_temps(XArray *replacements, IRExpr **expr);
+
+static void update_reg_load_sizes(toolData *tool_data,
+                                  Int offset,
+                                  SizeT size,
+                                  SizeT full_size);
 
 static void update_reg_origins(toolData *tool_data, 
                                Int offset,
@@ -65,8 +76,10 @@ static void fi_reg_set_occupancy_origin(toolData *tool_data,
     if(tool_data->injections == 0) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
         update_reg_origins(tool_data, offset, size, state->location);
+        update_reg_load_sizes(tool_data, offset, size, state->full_size);
     } else {
-        update_reg_origins(tool_data, offset, size, NULL);
+        update_reg_origins(tool_data, offset, size, (Addr) NULL);
+        update_reg_load_sizes(tool_data, offset, size, 0);
     }
 }
 
@@ -74,7 +87,8 @@ static void fi_reg_set_occupancy_origin(toolData *tool_data,
 static void VEX_REGPARM(3) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
                                                                Int offset,
                                                                SizeT size) {
-    update_reg_origins(tool_data, offset, size, NULL);
+    update_reg_origins(tool_data, offset, size, (Addr) NULL);
+    update_reg_load_sizes(tool_data, offset, size, 0);
 }
 
 // ----------------------------------------------------------------------------
@@ -84,7 +98,22 @@ static inline void update_reg_origins(toolData *tool_data,
                                       Addr origin_offset) {
     Int i = 0;
     for(; i < size; ++i) {
-        tool_data->reg_origins[offset+i] = origin_offset + i;
+        Addr offset_i = (origin_offset == NULL ? NULL : origin_offset + i);
+        tool_data->reg_origins[offset+i] = offset_i;
+    }
+}
+
+// ----------------------------------------------------------------------------
+static inline void update_reg_load_sizes(toolData *tool_data,
+                                         Int offset,
+                                         SizeT size,
+                                         SizeT full_size) {
+    Int i = offset * 2;
+    SizeT load_list_size = size * 2;
+
+    for(; i < load_list_size; i += 2) {
+        tool_data->reg_load_sizes[i] = --size; 
+        tool_data->reg_load_sizes[i+1] = full_size;
     }
 }
 
@@ -229,12 +258,18 @@ static inline UWord flip_or_leave(toolData *tool_data,
 
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-            tool_data->injections++;
-            data ^= (1 << tool_data->modBit);
+            UChar *addr = get_destination_address((Addr) &data, state->size, tool_data->modBit);
 
-            if(tool_data->write_back_flip) {
-                *((UWord*)state->location) = data;
+            if(addr != NULL) {
+                *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
             }
+  
+            optional_memory_writing(tool_data, 
+                                    data,
+                                    state->full_size,
+                                    state->location,
+                                    addr != NULL);
+            tool_data->injections++;
         }
     }
 
@@ -244,19 +279,28 @@ static inline UWord flip_or_leave(toolData *tool_data,
 // ----------------------------------------------------------------------------
 inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
                                                 UWord data,
-                                                Addr a) {
+                                                Int offset) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-        tool_data->injections++;
+        Int full_size_offset = offset * 2 + 1;
+        UChar *addr = get_destination_address((Addr) &data,
+                                              tool_data->reg_load_sizes[offset*2],
+                                              tool_data->modBit);
 
-        data ^= (1 << tool_data->modBit);
-
-        if(tool_data->write_back_flip) {
-            *((UWord*) a) = data;
+        if(addr != NULL) {
+            *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
         }
+
+        optional_memory_writing(tool_data, 
+                                data,
+                                tool_data->reg_load_sizes[full_size_offset],
+                                tool_data->reg_origins[offset],
+                                addr != NULL);
+
+        tool_data->injections++;
     }
 
     return data;
@@ -294,6 +338,31 @@ static inline UChar* get_destination_address(Addr a, SizeT size, UChar bit) {
 // ----------------------------------------------------------------------------
 static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
     return byte ^ (1 << bit); 
+}
+
+// ----------------------------------------------------------------------------
+static inline void optional_memory_writing(toolData *tool_data,
+                                           UWord data,
+                                           SizeT full_size,
+                                           Addr location,
+                                           Bool data_flipped) {
+    if(tool_data->write_back_flip) {
+        UChar *data_addr = get_destination_address((Addr) &data,
+                                                   full_size,
+                                                   tool_data->modBit);
+
+        if(data_addr != NULL) {
+            UChar *dest_addr = get_destination_address(location,
+                                                       full_size,
+                                                       tool_data->modBit);
+
+            if(!data_flipped) {
+                *data_addr = flip_byte_at_bit(*data_addr, tool_data->modBit % 8);
+            }
+
+            *dest_addr = *data_addr;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -594,7 +663,7 @@ static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
 
         data = fi_reg_flip_or_leave_no_state_list(tool_data,
                                                   data,
-                                                  tool_data->reg_origins[offset]);
+                                                  offset);
         *(UWord*)(((UChar*) bp) + offset) = data;
     }
 }

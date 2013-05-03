@@ -100,8 +100,6 @@ static Int cmpMonitorable (void *v1, void *v2) {
 static toolData tData;
 
 static void initTData() {
-    Int i = 0;
-
     tData.instAddr = (Addr)NULL;
     tData.monitoredInst = False;
     tData.loads = 0;
@@ -113,6 +111,9 @@ static void initTData() {
     tData.modBit = 0;
     tData.monLoadCnt = 0;
     tData.goldenRun = False;
+    tData.reg_temp_occupancies = NULL;
+    tData.reg_origins = NULL;
+    tData.reg_load_sizes = NULL;
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -263,9 +264,10 @@ static void fi_post_clo_init(void) {
  *  The returned value indicates whether the loaded address is revelant for variable
  *  tracing.
  */
-static Word VEX_REGPARM(2) preLoadHelper(toolData *td, 
-                                         Addr dataAddr) {
-    LoadState state = (LoadState) { False, dataAddr };
+static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
+                                         Addr dataAddr,
+                                         SizeT size) {
+    LoadState state = (LoadState) { False, dataAddr, 0 };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
 
@@ -288,14 +290,12 @@ static Word VEX_REGPARM(2) preLoadHelper(toolData *td,
     // iterate over monitorables list
     if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
         Word i = first;
+        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
-        for(; i <= last; ++i) {
-            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
-
-            if(mon->monValid) {
-                state.relevant = True;
-                break;
-            }
+        if(mon->monValid) {
+            state.relevant = True;
+            state.size = size;
+            state.full_size = mon->monSize;
         }
     }
 
@@ -318,9 +318,11 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        args = mkIRExprVec_2(mkIRExpr_HWord(td),
-                             expr->Iex.Load.addr);
-        di = unsafeIRDirty_0_N(2,
+        Int size = sizeofIRType(expr->Iex.Load.ty);
+        args = mkIRExprVec_3(mkIRExpr_HWord(td),
+                             expr->Iex.Load.addr,
+                             mkIRExpr_HWord(size));
+        di = unsafeIRDirty_0_N(3,
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
                                args);
@@ -347,12 +349,16 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 // ----------------------------------------------------------------------------
 static inline void initialize_register_lists(Int size) {
     tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
-    VG_(memset)(tData.reg_origins, NULL, size);
+    VG_(memset)(tData.reg_origins, 0, sizeof(Addr) * size);
 
     tData.reg_temp_occupancies =
         VG_(malloc)("fi.init.reg_temp_occupancies", sizeof(IRTemp) * size);
     // see IRTemp_INVALID
-    VG_(memset)(tData.reg_temp_occupancies, 0xFF, size);
+    VG_(memset)(tData.reg_temp_occupancies, 0xFF, sizeof(IRTemp) * size);
+
+    tData.reg_load_sizes =
+        VG_(malloc)("fi.init.reg_load_sizes", sizeof(SizeT) * size * 2);
+    VG_(memset)(tData.reg_load_sizes, 0, sizeof(SizeT) * size * 2);
 }
 
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
@@ -379,7 +385,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     IRExpr **argv;
     IRDirty *di;
     int i;
-    LoadData last_load_data;
     XArray *loads = NULL, *replacements = NULL;
 
     /* We don't currently support this case. */
@@ -389,6 +394,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     
     if(!tData.register_lists_loaded) {
         initialize_register_lists(layout->total_sizeB);
+        tData.register_lists_loaded = True;
     }
 
     // FITIn-reg: the list of loads
@@ -573,6 +579,7 @@ static void fi_fini(Int exitcode) {
     if(tData.register_lists_loaded) {
         VG_(free)(tData.reg_origins);
         VG_(free)(tData.reg_temp_occupancies);
+        VG_(free)(tData.reg_load_sizes);
     }
 
     VG_(printf)("Totals:\n");
@@ -671,7 +678,7 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
             VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
             data = fi_reg_flip_or_leave_no_state_list(&tData,
                                                       data,
-                                                      tData.reg_origins[offset]);
+                                                      offset);
             VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
         }
     }
