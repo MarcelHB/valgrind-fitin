@@ -14,6 +14,11 @@ static void add_modifier_for_register(toolData *tool_data,
                                       SizeT size,
                                       IRSB *sb);
 
+static void add_modifier_for_offset(toolData *tool_data,
+                                    Int j,
+                                    Int initial_offset,
+                                    IRSB *sb);
+
 static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             IRDirty *di,
                                             Int nFx,
@@ -113,8 +118,9 @@ static inline void update_reg_load_sizes(toolData *tool_data,
                                          SizeT full_size) {
     Int i = offset * 2;
     SizeT load_list_size = size * 2;
+    Int until = offset * 2 + load_list_size;
 
-    for(; i < load_list_size; i += 2) {
+    for(; i < until; i += 2) {
         tool_data->reg_load_sizes[i] = --size; 
         tool_data->reg_load_sizes[i+1] = full_size;
     }
@@ -641,27 +647,47 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                                    IRSB *sb) {
     // just some variables to deal with anonymous type st->fxState[i]
     UShort offset = st->fxState[nFx].offset, 
-           size = st->fxState[nFx].offset;
+           size = st->fxState[nFx].size;
     UChar nRepeats = st->fxState[nFx].nRepeats, 
           repeatLen = st->fxState[nFx].repeatLen;
-    Int i = 0;
     
     // Read indices from offsets in range
-    for(; i <= nRepeats; ++i) {
-        Int start_offset = offset + i * repeatLen; 
-        Int j = start_offset;
+    if(nRepeats > 0) {
+        UShort i = 0;
 
-        for(; j < size; ++j) {
-            Int left = tool_data->reg_load_sizes[j * 2];
+        for(; i <= nRepeats; ++i) {
+            Int start_offset = offset + i * repeatLen; 
+            Int j = start_offset, until = start_offset + size;
 
-            // Do not insert a modifier for the same reg area twice
-            if(j > 0 && (j-1) >= start_offset) {
-                if(tool_data->reg_load_sizes[(j-1) * 2] <= left) {
-                    add_modifier_for_register(tool_data, j, left + 1, sb);
-                }
-            } else {
-                add_modifier_for_register(tool_data, j, left + 1, sb);
+            for(; j < until; ++j) {
+                add_modifier_for_offset(tool_data, j, start_offset, sb); 
             }
+        }
+    } else {
+        Int j = offset, until = offset + size;
+
+        for(; j < until; ++j) {
+           add_modifier_for_offset(tool_data, j, offset, sb); 
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+static inline void add_modifier_for_offset(toolData *tool_data,
+                                           Int j,
+                                           Int initial_offset,
+                                           IRSB *sb) {
+    IRTemp temp = tool_data->reg_temp_occupancies[j];
+
+    if(temp != IRTemp_INVALID) {
+        SizeT size = sizeofIRType(typeOfIRTemp(sb->tyenv, temp));
+
+        if(j > 0 && (j-1) >= initial_offset) {
+            if(tool_data->reg_temp_occupancies[j-1] != temp) {
+                add_modifier_for_register(tool_data, j, size, sb);
+            }
+        } else {
+            add_modifier_for_register(tool_data, j, size, sb);
         }
     }
 }

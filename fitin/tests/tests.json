@@ -48,5 +48,12 @@
         "output": "sample7",
         "expected": "4",
         "vg_params": "--mod-bit=2 --mod-load-time=2"
+    },{
+        "title": "Handles Valgrind's dirty helpers (x86-test only)",
+        "cflags": "-m32",
+        "files": ["sample8.c"],
+        "output": "sample8",
+        "expected": "1",
+        "vg_params": "--mod-bit=0 --mod-load-time=1"
     }]
 }
