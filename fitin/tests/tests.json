@@ -1,68 +1,68 @@
 {
     "tests": [{
-        "title": "Flipping a variable on n-th access",
+        "title": "Flips a variable on n-th access.",
         "files": ["sample1.c"],
         "output": "sample1",
         "expected": "36",
         "vg_params": "--mod-bit=5 --mod-load-time=3"
     },{
-        "title": "Flipping causes different branching",
+        "title": "Flipping causes different branching.",
         "files": ["sample2.c"],
         "output": "sample2",
         "expected": "a LT 1",
         "vg_params": "--mod-bit=0 --mod-load-time=1"
     },{
-        "title": "Flipped value is written back to memory",
+        "title": "Writes a flipped value back to memory.",
         "files": ["sample3.c"],
         "output": "sample3",
         "expected": "3",
         "vg_params": "--mod-bit=1 --mod-load-time=3 --persist-flip=yes"
     },{
-        "title": "Register tunneled load (x86-test only)",
+        "title": "Tracks a register tunneled load (x86-test only).",
         "cflags": "-m32",
         "files": ["sample4.c"],
         "output": "sample4",
         "expected": "2",
         "vg_params": "--mod-bit=1 --mod-load-time=3"
     },{
-        "title": "Reassigning is not counting as instrumentable access",
+        "title": "Ignores re-assigning as access.",
         "files": ["sample5.c"],
         "output": "sample5",
         "expected": "2 3",
         "vg_params": "--mod-bit=0 --mod-load-time=2"
     },{
-        "title": "MyDhrystone2, not crashing",
+        "title": "MyDhrystone2, not crashing.",
         "files": ["dhry_1.c", "dhry_2.c"],
         "output": "dhry",
         "expected": null,
         "vg_params": "--mod-bit=4 --mod-load-time=5"
     },{
-        "title": "Deals with repeating variables on stack",
+        "title": "Deals with repeating variables on stack.",
         "files": ["sample6.c"],
         "output": "sample6",
         "expected": "4",
         "vg_params": "--mod-bit=1 --mod-load-time=10 --fnname=just_do_it"
     },{
-        "title": "Flips on memory syscall with offset",
+        "title": "Flips on memory syscall with offset.",
         "files": ["sample7.c"],
         "output": "sample7",
         "expected": "4",
         "vg_params": "--mod-bit=2 --mod-load-time=2"
     },{
-        "title": "Handles Valgrind's dirty helpers (x86-test only)",
+        "title": "Handles Valgrind's dirty helpers (x86-test only).",
         "cflags": "-m32",
         "files": ["sample8.c"],
         "output": "sample8",
         "expected": "1",
         "vg_params": "--mod-bit=0 --mod-load-time=1"
     },{
-        "title": "Does not flip if bit outside of partial load",
+        "title": "Does not flip if bit is outside of partial load.",
         "files": ["sample9.c"],
         "output": "sample9",
         "expected": "1",
         "vg_params": "--mod-bit=14 --mod-load-time=1"
     },{
-        "title": "... but will do in memory on persistency request",
+        "title": "... but does flip in memory on persistency request.",
         "files": ["sample9.c"],
         "output": "sample9",
         "expected": "16385",
