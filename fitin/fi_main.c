@@ -698,8 +698,7 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
             key.monAddr = a + mem_offset;
 
             if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
-                Int i = 0;
-                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, first);
 
                 if(mon->monValid) {
                     fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
