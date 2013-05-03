@@ -37,10 +37,10 @@ end
 
 #------------------------------------------------------------------------------
 task :build_tests do
-  unless skip_building?
-    test_data_records.each do |test|
-      build_test(test)
-    end
+  time = last_build_time
+
+  test_data_records.each do |test|
+    build_test(test, time)
   end
 
   set_built_marker 
@@ -63,16 +63,29 @@ def bin_output(name)
 end
 
 #------------------------------------------------------------------------------
-def build_test(test)
+def build_test(test, time)
+  link = false 
+
   test["files"].each do |src|
-    sh "#{CC} #{CFLAGS} #{test["cflags"]} -c #{src} -o #{object_file(src)}"
+    if !time || File.atime(src) > time
+      sh "#{CC} #{CFLAGS} #{test["cflags"]} -c #{src} -o #{object_file(src)}"
+      link = true
+    end
   end
 
-  FileUtils.mkdir_p(local("bin"))
+  if link
+    FileUtils.mkdir_p(local("bin"))
 
-  objects = test["files"].map { |src| object_file(src) }
-  sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
+    objects = test["files"].map { |src| object_file(src) }
+    sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
+  end
+end
 
+#------------------------------------------------------------------------------
+def last_build_time
+  if File.exists?(local(TEST_BUILT_FILE))
+    File.atime(local(TEST_BUILT_FILE))
+  end
 end
 
 #------------------------------------------------------------------------------
@@ -125,11 +138,6 @@ def silent(&block)
     $stdout = stdout
     $stderr = stderr
   end
-end
-
-#------------------------------------------------------------------------------
-def skip_building?
-  File.exists?(local(TEST_BUILT_FILE))
 end
 
 #------------------------------------------------------------------------------
