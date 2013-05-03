@@ -9,7 +9,10 @@
 
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
-static void add_modifier_for_register(toolData *tool_data, Int offset, IRSB *sb);
+static void add_modifier_for_register(toolData *tool_data,
+                                      Int offset,
+                                      SizeT size,
+                                      IRSB *sb);
 
 static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             IRDirty *di,
@@ -646,10 +649,19 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
     // Read indices from offsets in range
     for(; i <= nRepeats; ++i) {
         Int start_offset = offset + i * repeatLen; 
-        Int j = 0;
+        Int j = start_offset;
 
         for(; j < size; ++j) {
-            add_modifier_for_register(tool_data, i, sb);
+            Int left = tool_data->reg_load_sizes[j * 2];
+
+            // Do not insert a modifier for the same reg area twice
+            if(j > 0 && (j-1) >= start_offset) {
+                if(tool_data->reg_load_sizes[(j-1) * 2] <= left) {
+                    add_modifier_for_register(tool_data, j, left + 1, sb);
+                }
+            } else {
+                add_modifier_for_register(tool_data, j, left + 1, sb);
+            }
         }
     }
 }
@@ -669,7 +681,10 @@ static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
 }
 
 // ----------------------------------------------------------------------------
-static inline void add_modifier_for_register(toolData *tool_data, Int offset, IRSB *sb) {
+static inline void add_modifier_for_register(toolData *tool_data,
+                                             Int offset,
+                                             SizeT size,
+                                             IRSB *sb) {
     IRStmt *st;
     IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
                                   mkIRExpr_HWord(offset));
@@ -681,7 +696,7 @@ static inline void add_modifier_for_register(toolData *tool_data, Int offset, IR
     di->nFxState = 1;
     di->fxState[0].fx = Ifx_Modify;
     di->fxState[0].offset = offset;
-    di->fxState[0].size = 1;
+    di->fxState[0].size = size;
     di->fxState[0].nRepeats = 0;
     di->fxState[0].repeatLen = 0;
     di->needsBBP = True;
