@@ -55,5 +55,17 @@
         "output": "sample8",
         "expected": "1",
         "vg_params": "--mod-bit=0 --mod-load-time=1"
+    },{
+        "title": "Does not flip if bit outside of partial load",
+        "files": ["sample9.c"],
+        "output": "sample9",
+        "expected": "1",
+        "vg_params": "--mod-bit=14 --mod-load-time=1"
+    },{
+        "title": "... but will do in memory on persistency request",
+        "files": ["sample9.c"],
+        "output": "sample9",
+        "expected": "16385",
+        "vg_params": "--mod-bit=14 --mod-load-time=1 --persist-flip=yes"
     }]
 }
