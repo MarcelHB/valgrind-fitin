@@ -2,6 +2,7 @@ require "fileutils"
 require "json"
 require "stringio"
 require "tempfile"
+require "benchmark"
 
 $LOAD_PATH << File.dirname(__FILE__)
 
@@ -21,6 +22,43 @@ end
 #------------------------------------------------------------------------------
 task :clean do
   Rake::Task["clean_tests"].invoke
+end
+
+#------------------------------------------------------------------------------
+task :benchmark_dhry => [:build_dhry_benchmark] do
+  log_file = Tempfile.new("dhry")
+
+  begin
+    puts "[RUN] Dhry without Valgrind"
+    time1 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        silent { sh "#{bin_output("dhry")} &> /dev/null" }
+      end
+    end
+    puts "\n[RESULT] avg: #{time1/BENCHMARK_RUNS}s"
+
+    puts "[RUN] Dhry with Valgrind and --tool=none"
+    time2 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        silent { sh "#{VALGRIND} --log-file=#{log_file.path} --tool=none #{bin_output("dhry")} 2>&1 > /dev/null" }
+      end
+    end
+    puts "\n[RESULT] avg: #{time2/BENCHMARK_RUNS}s"
+
+    puts "[RUN] Dhry with Valgrind and --tool=fitin"
+    time3 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        silent { sh "#{VALGRIND} --log-file=#{log_file.path} --tool=fitin #{BENCHMARK_DHRY_VG} #{bin_output("dhry")} 2>&1 > /dev/null" }
+      end
+    end
+    puts "\n[RESULT] avg: #{time3/BENCHMARK_RUNS}s"
+  ensure
+    log_file.close
+    File.unlink(log_file)
+  end
 end
 
 #------------------------------------------------------------------------------
@@ -44,6 +82,13 @@ task :build_tests do
   end
 
   set_built_marker 
+end
+
+#------------------------------------------------------------------------------
+task :build_dhry_benchmark do
+  test_data_records.select { |test| test["output"] == "dhry" }.each do |test|
+    build_test(test, last_build_time)
+  end
 end
 
 #------------------------------------------------------------------------------
