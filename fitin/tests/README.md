@@ -21,8 +21,7 @@ Execute ```rake TASK``` with TASK being one of the following commands:
   three samples.
 
 Test runs and options are specified by ```tests.json```, other
-parameters (paths, benchmark runs) are located inside of
-```rake.config.rb```.
+parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
 
 ## benchmark\_dhry
 

@@ -21,12 +21,17 @@ If the counter - by whatever monitored has been accessed - hits
 ```--mod-load-time``, it will attempt to flip the bit ```--mod-bit```
 before the actual read. 'Attempt' in terms of evaluating whether the
 desired bit is in range of the loaded data. If not, no flip can occur.
+The desired bit counts from the offset of the least significant bit of
+the variable.
 
 By not discriminating between registers and memory, a flipped value may
 be dropped if it resides in a register and won't be written into its
 original location afterwards. This may be the case if you have memory
 you only need to read from. To persist the manipulated value in any
-case, please use ```--persist-flip=yes```.
+case, please use ```--persist-flip=yes```. With this option, even if the
+value could not be flipped at first (e.g. only the first byte of an
+```int``` was loaded), it will replace the flipped byte-of-the-bit in
+the memory.
 
 FITIn will also treat reads of memory and registers by syscalls.
 
