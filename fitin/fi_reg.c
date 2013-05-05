@@ -6,6 +6,7 @@
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
 #include "pub_tool_debuginfo.h"
+#include "pub_tool_options.h"
 
 /* ------- Protoypes, please scroll down for more info  --------*/
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
@@ -310,6 +311,10 @@ static inline UWord flip_or_leave(toolData *tool_data,
 
             if(addr != NULL) {
                 *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+
+                if(VG_(clo_verbosity) > 1) {
+                    VG_(printf)("[FITIn] FLIP! Data from %p\n", (void*) state->location);
+                }
             }
   
             /* Test for writing back into memory. */
@@ -342,6 +347,10 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
 
         if(addr != NULL) {
             *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP! Data from %p\n", (void*) tool_data->reg_origins[offset]);
+            }
         }
 
         /* Test for writing back into memory. */
@@ -369,6 +378,10 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
 
         if(addr != NULL) {
             *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP! Data at %p\n", (void*) a);
+            }
         }
 
         tool_data->injections++;
@@ -422,6 +435,10 @@ static inline void optional_memory_writing(toolData *tool_data,
 
             if(!data_flipped) {
                 *data_addr = flip_byte_at_bit(*data_addr, tool_data->modBit % 8);
+
+                if(VG_(clo_verbosity) > 1) {
+                    VG_(printf)("[FITIn] FLIP (secondary)! Data at %p\n", (void*) dest_addr);
+                }
             }
 
             *dest_addr = *data_addr;

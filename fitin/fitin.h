@@ -35,6 +35,7 @@ typedef enum {
     //MT_FILTFUNCABOVE
 } filterType;
 
+/* Macro that is needed for determining allocation sizes of shadow fields. */
 #define GUEST_STATE_SIZE sizeof(VexGuestArchState)
 
 // This is a data structure to store tool specific data.
@@ -65,18 +66,19 @@ typedef struct _toolData {
     XArray *monitorables;
     // Counter for overall monitored loads
     ULong monLoadCnt;
-    // FITIn-reg: option to allow writing back a flipped value
+    /* Option that enables persisting of flips by writing them to memory. */
     Bool write_back_flip;
-    // FITIn-reg: runtime list allowing lookup of original address
+    /* Execution-time list of load information. */
     XArray *load_states;
-    // FITIn-reg: flag whether the following lists are already reserved
+    /* Flag indicating whether shadow registers have been allocated. */
     Bool register_lists_loaded;
-    // FITIn-reg: register offset -> current temp
+    /* Instrumentation shadow field: register -> temp. */
     IRTemp *reg_temp_occupancies;
-    // FITIn-reg: register offset -> origin
+    /* Execution shadow field: register -> original address. */
     Addr *reg_origins;
-    // FITIn-reg: loaded and original sizes
+    /* Execution shadow field: register -> (load size, original size) */
     SizeT *reg_load_sizes;
+    /* Guest word size. */
     IRType gWordTy;
 } toolData;
 

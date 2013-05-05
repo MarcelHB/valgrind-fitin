@@ -1,4 +1,3 @@
-
 /*--------------------------------------------------------------------*/
 /*--- FITIn: The fault injection tool                    fi_main.c ---*/
 /*--------------------------------------------------------------------*/
@@ -7,6 +6,7 @@
    This file is part of FITIn, a small fault injection tool.
 
    Copyright (C) 2012 Clemens Terasa clemens.terasa@tu-harburg.de
+                      Marcel Heing-Becker <marcel.heing@tu-harburg.de>
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
@@ -289,7 +289,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
     key.monAddr = dataAddr;
 
     if(VG_(clo_verbosity) > 1) {
-        VG_(printf)("Load: 0x%08x\n", dataAddr);
+        VG_(printf)("[FITIn] Load: %p (size: %u)\n", (void*) dataAddr, size);
     }
 
     // iterate over monitorables list
@@ -531,11 +531,6 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                 default:
                     break;
             }
-
-            if(VG_(clo_verbosity) > 1) {
-                ppIRStmt(st);
-                VG_(printf)("\n");
-            }
         }
 
         addStmtToIRSB(sbOut, st);
@@ -551,10 +546,10 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
 static void fi_fini(Int exitcode) {
     switch(exitcode) {
         case EXIT_FAIL:
-            VG_(printf)("Exited with unknown cause!\n");
+            VG_(printf)("[FITIn] Exited with unknown cause!\n");
             break;
         case EXIT_STOPPED:
-            VG_(printf)("Exited: Instruction limit reached!\n");
+            VG_(printf)("[FITIn] Exited: Instruction limit reached!\n");
             break;
         case EXIT_SUCCESS:
         default:
@@ -562,23 +557,16 @@ static void fi_fini(Int exitcode) {
     }
 
     XArray *mons = tData.monitorables;
-
     Word arrSize = VG_(sizeXA)(mons);
     Word i = 0;
-    ULong monLoadCnt = 0;
-    ULong monBytesLoad = 0;
+
     for (i = 0; i < arrSize; i++) {
         Monitorable *mon = (Monitorable *)VG_(indexXA)(mons, i);
-        tl_assert(mon != NULL);
-        //TODO: New repersentation of valid: valid up to modify
 
         if(VG_(clo_verbosity) > 1) {
-            VG_(printf)("Monitorable memory address: 0x%016llX\n", mon->monAddr);
-            VG_(printf)("                   size: %d\n", mon->monSize);
-            VG_(printf)("                   loads: %d\n", mon->monLoads);
+            VG_(printf)("[FITIn] Monitorable memory address: 0x%016llX\n", mon->monAddr);
+            VG_(printf)("[FITIn]                    size: %d\n", mon->monSize);
         }
-        monLoadCnt += mon->monLoads;
-        monBytesLoad += (mon->monSize * mon->monLoads);
     }
 
     VG_(deleteXA)(tData.monitorables);
@@ -590,11 +578,10 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-    VG_(printf)("Totals:\n");
-    VG_(printf)("Overall memory loads: %d\n", tData.loads);
-    VG_(printf)("Monitored memory loads: %d\n", tData.monLoadCnt);
-    VG_(printf)("Monitored memory bytes load: %d\n", monBytesLoad);
-    VG_(printf)("Instructions executed: %d\n", tData.instCnt);
+    VG_(printf)("[FITIn] Totals:\n");
+    VG_(printf)("[FITIn] Overall variable accesses: %d\n", tData.loads);
+    VG_(printf)("[FITIn] Monitored variable accesses: %d\n", tData.monLoadCnt);
+    VG_(printf)("[FITIn] Instructions executed: %d\n", tData.instCnt);
 }
 
 /* --------------------------------------------------------------------------*/
