@@ -7,6 +7,7 @@
 #include "pub_tool_libcassert.h"
 #include "pub_tool_debuginfo.h"
 
+/* ------- Protoypes, please scroll down for more info  --------*/
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
 
 static void add_modifier_for_register(toolData *tool_data,
@@ -40,7 +41,7 @@ static void replace_temps(XArray *replacements, IRExpr **expr);
 
 static void update_reg_load_sizes(toolData *tool_data,
                                   Int offset,
-                                  SizeT size,
+                                  SizeT left,
                                   SizeT full_size);
 
 static void update_reg_origins(toolData *tool_data, 
@@ -54,13 +55,15 @@ static IRTemp instrument_access_tmp(toolData *tool_data,
                                     IRType ty,
                                     IRSB *sb);
 
-// ----------------------------------------------------------------------------
+/* Helper function to properly add a LoadData into the appropriate list. */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
     VG_(addToXA)(list, data);
     VG_(sortXA)(list);
 }
 
-// ----------------------------------------------------------------------------
+/* Function to be used by XArray to sort loads by destination IRTemp. */
+/* --------------------------------------------------------------------------*/
 Int fi_reg_compare_loads(void *l1, void *l2) {
     IRTemp t1 = ((LoadData*)l1)->dest_temp;
     IRTemp t2 = ((LoadData*)l2)->dest_temp;
@@ -68,7 +71,8 @@ Int fi_reg_compare_loads(void *l1, void *l2) {
     return (t1 == t2) ? 0 : ((t1 < t2) ? -1 : 1);
 }
 
-// ----------------------------------------------------------------------------
+/* Function to be used by XArray to sort replacements by replacable IRTemp. */
+/* --------------------------------------------------------------------------*/
 Int fi_reg_compare_replacements(void *r1, void *r2) {
     IRTemp t1 = ((ReplaceData*)r1)->old_temp;
     IRTemp t2 = ((ReplaceData*)r2)->old_temp;
@@ -76,11 +80,15 @@ Int fi_reg_compare_replacements(void *r1, void *r2) {
     return (t1 == t2) ? 0 : ((t1 < t2) ? -1 : 1);
 }
 
-// ----------------------------------------------------------------------------
+/* Copies data from load state list at `state_list_index` into the register
+   shadow fields, beginning at `offset` for `size` bytes. This includes the
+   original address, the size of the LD instruction and the monitorable size. */ 
+/* ---------------------------------------------------------------------------*/
 static void fi_reg_set_occupancy_origin(toolData *tool_data, 
                                         Int offset,
                                         SizeT size,
                                         Word state_list_index) {
+    /* After an injection, update any (remaining) information as irrelevant. */
     if(tool_data->injections == 0) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
         update_reg_origins(tool_data, offset, size, state->location);
@@ -91,42 +99,55 @@ static void fi_reg_set_occupancy_origin(toolData *tool_data,
     }
 }
 
-// ----------------------------------------------------------------------------
-static void VEX_REGPARM(3) fi_reg_set_occupancy_origin_invalid(toolData *tool_data, 
-                                                               Int offset,
-                                                               SizeT size) {
+/* Fills the register shadow fields beginning at `offset` for `size` bytes
+   with data indicating irrelevant contents. We need this additional dirty
+   as we we cannot pass an IRTemp_INVALID as state_list_index for the
+   previous one. */
+/* --------------------------------------------------------------------------*/
+static void VEX_REGPARM(3) fi_reg_set_occupancy_origin_irrelevant(toolData *tool_data, 
+                                                                  Int offset,
+                                                                  SizeT size) {
     update_reg_origins(tool_data, offset, size, (Addr) NULL);
     update_reg_load_sizes(tool_data, offset, size, 0);
 }
 
-// ----------------------------------------------------------------------------
+/* Function that is doing the actual writing to `tool_data`. Starting at
+   `offset`, it writes the origin for any `size` bytes and adjusts the 
+   address.*/
+/* --------------------------------------------------------------------------*/
 static inline void update_reg_origins(toolData *tool_data, 
                                       Int offset,
                                       SizeT size,
                                       Addr origin_offset) {
     Int i = 0;
     for(; i < size; ++i) {
+        /* NULL must not be incremented. */
         Addr offset_i = (origin_offset == NULL ? NULL : origin_offset + i);
         tool_data->reg_origins[offset+i] = offset_i;
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Function that is doing the actual writing to `tool_data`. Starting at
+   `offset`, it writes for the loaded size and the original monitoring size
+   down to the shadows field. Starting at `offset`, it writes down as many
+   bytes as `left` is large, 0 meaning 'last byte' of this load.
+/* --------------------------------------------------------------------------*/
 static inline void update_reg_load_sizes(toolData *tool_data,
                                          Int offset,
-                                         SizeT size,
+                                         SizeT left,
                                          SizeT full_size) {
     Int i = offset * 2;
-    SizeT load_list_size = size * 2;
+    SizeT load_list_size = left * 2;
     Int until = offset * 2 + load_list_size;
 
     for(; i < until; i += 2) {
-        tool_data->reg_load_sizes[i] = --size; 
+        tool_data->reg_load_sizes[i] = --left; 
         tool_data->reg_load_sizes[i+1] = full_size;
     }
 }
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_set_occupancy(toolData *tool_data,
                                  XArray *loads,
                                  Int offset,
@@ -138,6 +159,8 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
     IRDirty *dirty;
     SizeT size = 0;
 
+    /* The only case for a relevant origin is the expression of an IRTemp to
+       be PUT. */
     if(expr->tag == Iex_RdTmp) {
         Word first, last;
         LoadData key = (LoadData) { expr->Iex.RdTmp.tmp, Ity_INVALID, NULL, 0 };
@@ -165,20 +188,22 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
         }
     }
 
-    // We need to do it this way, IRTemp_INVALID cannot be passed.
+    /* If the previous block did not recognize a valid origin, we must now 
+       set up the helpers for invalidating the register shadow fields. */
     if(!valid_origin) {
-        // We do not need to update INVALID by INVALID
+        /* Do not update INVALID by INVALID, saves lots of helpers and time. */
         if(tool_data->reg_temp_occupancies[offset] == IRTemp_INVALID) {
             return; 
         }
 
+        /* Only if there was no Iex.RdTmp.tmp, otherwise we already have a size. */
         if(size == 0) {
             if(expr->tag == Iex_Const) {
                 IRType ty = typeOfIRConst(expr->Iex.Const.con);
                 size = sizeofIRType(ty);
             } else {
-                // If this ever happens, we need a more general way
-                // to find the size written here.
+                /* If this happens, we need a more general way to identify the data
+                   written into a PUT. */
                 tl_assert(0);
             }
         }
@@ -189,17 +214,19 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
                              mkIRExpr_HWord(offset),
                              mkIRExpr_HWord(size));
         dirty = unsafeIRDirty_0_N(3,
-                                  "fi_reg_set_occupancy_origin_invalid",
-                                  VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin_invalid),
+                                  "fi_reg_set_occupancy_origin_irrelevant",
+                                  VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin_irrelevant),
                                   args);
         st = IRStmt_Dirty(dirty);
         addStmtToIRSB(sb, st);
     }
 }
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
+                                   IRTemp new_temp,
                                    IRExpr *expr) {
     if(expr->tag == Iex_Get) {
         Int offset = expr->Iex.Get.offset;
@@ -208,23 +235,31 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
         load_key.dest_temp = temp;
         Word first, last;
 
+        /* Does not contain anything interesting for us. */
         if(temp == IRTemp_INVALID) {
             return;
         }
 
         if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
+            /* Load the load data of the original temp, and insert a copy
+               that only contains the new IRTemp, created by WrTmp. */
             LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
             LoadData new_load_data = *load_data;
 
-            new_load_data.dest_temp = temp;
+            new_load_data.dest_temp = new_temp;
 
-            VG_(addToXA)(loads, &new_load_data);
-            VG_(sortXA)(loads);
+            fi_reg_add_temp_load(loads, &new_load_data);
         }
     }
 }
 
-// ----------------------------------------------------------------------------
+/* This dirty call must be called before any RdTmp access to an IRTemp which
+   has been set up for tracking by preLoadHelper. It gets the value by `data`
+   and the index to use for looking of loading information.
+   
+   The return value may be flipped or not but must be used for replacing the
+   original acccessed IRTemp in either case. */
+/* --------------------------------------------------------------------------*/
 inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  UWord data,
                                                  Word state_list_index) {
@@ -239,7 +274,10 @@ inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
     return data;
 }
 
-// ----------------------------------------------------------------------------
+/* This dirty call must be used before ST. It will ensure that flipping is only
+   done if the original address of the IRTemp and the destination `address` are
+   different. */
+/* --------------------------------------------------------------------------*/
 inline UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
                                                UWord data,
                                                Addr address,
@@ -257,8 +295,9 @@ inline UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
     return data;
 }
 
-
-// ----------------------------------------------------------------------------
+/* The method that is performing the bit-flip if applicable. It takes place 
+   inside of `data` and will be returned. */
+/* --------------------------------------------------------------------------*/
 static inline UWord flip_or_leave(toolData *tool_data,
                                   UWord data,
                                   LoadState *state) {
@@ -273,6 +312,7 @@ static inline UWord flip_or_leave(toolData *tool_data,
                 *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
             }
   
+            /* Test for writing back into memory. */
             optional_memory_writing(tool_data, 
                                     data,
                                     state->full_size,
@@ -285,7 +325,8 @@ static inline UWord flip_or_leave(toolData *tool_data,
     return data;
 }
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
                                                 UWord data,
                                                 Int offset) {
@@ -303,6 +344,7 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
             *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
         }
 
+        /* Test for writing back into memory. */
         optional_memory_writing(tool_data, 
                                 data,
                                 tool_data->reg_load_sizes[full_size_offset],
@@ -315,7 +357,10 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
     return data;
 }
 
-// ----------------------------------------------------------------------------
+/* This method must be used if we know that data is definitely read from 
+   memory (syscall). It takes the address `a` and the size `size` to check
+   for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
@@ -332,7 +377,10 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Helper to extract a byte-precise address. This can be used to do the actual
+   flip. It tests whether `bit` is located inside of `a` + `size`. If not,
+   this will return NULL. */
+/* --------------------------------------------------------------------------*/
 static inline UChar* get_destination_address(Addr a, SizeT size, UChar bit) {
     UChar bit_size = size * 8; 
 
@@ -344,12 +392,21 @@ static inline UChar* get_destination_address(Addr a, SizeT size, UChar bit) {
     return NULL;
 }
 
-// ----------------------------------------------------------------------------
+/* Flip peforming method, to flip `bit` in the given `byte`. Reduces code
+   duplication. */
+/* --------------------------------------------------------------------------*/
 static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
     return byte ^ (1 << bit); 
 }
 
-// ----------------------------------------------------------------------------
+/* This method is to be used by the dirty flipper methods if operating on
+   non-original locations. Only working if `--persist-flip` is on.
+
+   The method determines the flipped byte in `data` and the according memory
+   byte as offset to `location`. If `data_flipped` is false, e.g. by a too
+   small partial load, this method attempts to do the flip on `location` and
+   `full_size` on memory again. */
+/* --------------------------------------------------------------------------*/
 static inline void optional_memory_writing(toolData *tool_data,
                                            UWord data,
                                            SizeT full_size,
@@ -374,28 +431,34 @@ static inline void optional_memory_writing(toolData *tool_data,
     }
 }
 
-// ----------------------------------------------------------------------------
-static inline IRTemp insert_size_widener(IRTemp tmp, IRType ty, IRSB *sb) {
+/* This is an important method to be called before inserting any flip-helper.
+   As loads may be < UWord, but arguments are required to have UWord-size,
+   this method inserts casts to change the size to UWord, not respecting signs. */
+/* --------------------------------------------------------------------------*/
+static inline IRTemp insert_size_widener(toolData *tool_data, 
+                                         IRTemp tmp,
+                                         IRType ty,
+                                         IRSB *sb) {
     IROp op = Iop_INVALID;
+    Bool is64 = ty == Ity_I64;
 
     switch(ty) {
         case Ity_I8:
-            op = SIZE_SUFFIX(Iop_8Uto);
+            op = is64 ? Iop_8Uto64 : Iop_8Uto32;
             break;
         case Ity_I16:
-            op = SIZE_SUFFIX(Iop_16Uto);
+            op = is64 ? Iop_16Uto64 : Iop_16Uto32;
             break;
-#ifdef __x86-64__
         case Ity_I32:
-            op = SIZE_SUFFIX(Iop_32Uto);
+            op = is64 ? Iop_32Uto64 : Iop_INVALID;
             break;
-#endif
         default:
             break;
     }
 
     if(op != Iop_INVALID) {
-        IRTemp new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
+        IRTemp new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
+
         IRStmt *st = IRStmt_WrTmp(
                                     new_temp,
                                     IRExpr_Unop(
@@ -414,7 +477,10 @@ static inline IRTemp insert_size_widener(IRTemp tmp, IRType ty, IRSB *sb) {
     return IRTemp_INVALID;
 }
 
-// ----------------------------------------------------------------------------
+/* Whenever an RdTmp occurs, this function needs to be called to manage 
+   all necessary things, and inserting the helper. Needs `loads` for
+   doing a relevance check for `tmp`. `ty` is the type of `temp`.*/
+/* --------------------------------------------------------------------------*/
 static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                            XArray *loads,
                                            IRTemp tmp,
@@ -431,8 +497,9 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
         IRExpr **args;
         IRDirty *dirty;
 
-        if(ty != SIZE_SUFFIX(Ity_I)) {
-            access_temp = insert_size_widener(tmp, ty, sb);
+        /* Insert widener if temp is too small for being an argument. */
+        if(ty < tool_data->gWordTy) {
+            access_temp = insert_size_widener(tool_data, tmp, ty, sb);
             
             if(access_temp == IRTemp_INVALID) {
                 return IRTemp_INVALID;
@@ -448,9 +515,14 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                   "fi_reg_flip_or_leave",
                                   VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
                                   args);
-        dirty->mAddr = load_data->addr;
-        dirty->mSize = sizeof(UWord);
-        dirty->mFx = Ifx_Write;
+
+        /* Skip registering memory writing if not enabled. */
+        if(tool_data->write_back_flip) {
+            /* Open issue: Can we predict the exact byte here w.r.t to full_size? */
+            dirty->mAddr = load_data->addr;
+            dirty->mSize = 1;
+            dirty->mFx = Ifx_Write;
+        }
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);
@@ -469,7 +541,8 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                                                 sb, \
                                                                 replace_only);
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline void  fi_reg_instrument_access(toolData *tool_data,
                                       XArray *loads,
                                       XArray *replacements,
@@ -481,6 +554,8 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.GetI.ix);
             break;
         case Iex_RdTmp:
+            /* Stop recursion if arrived on a RdTmp. And replace
+               it if there are replacement entries for this one. */
             if(!replace_only) {
                 add_replacement(replacements,
                                 (*expr)->Iex.RdTmp.tmp,
@@ -529,7 +604,10 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Basically the same as instrument_access_tmp. But to be used on RdTmp on
+   a Store instruction. This one also gets the destination expression
+   `address`. */
+/* --------------------------------------------------------------------------*/
 static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
                                                     XArray *loads,
                                                     IRTemp tmp,
@@ -546,8 +624,9 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
         IRExpr **args;
         IRDirty *dirty;
                 
-        if(ty != SIZE_SUFFIX(Ity_I)) {
-            access_temp = insert_size_widener(tmp, ty, sb);
+        /* Insert widener if temp is too small for being an argument. */
+        if(ty < tool_data->gWordTy) {
+            access_temp = insert_size_widener(tool_data, tmp, ty, sb);
             
             if(access_temp == IRTemp_INVALID) {
                 return IRTemp_INVALID;
@@ -555,7 +634,7 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
         }  
                 
                 
-        new_temp = newIRTemp(sb->tyenv, SIZE_SUFFIX(Ity_I));
+        new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
         args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
                              IRExpr_RdTmp(access_temp), 
@@ -565,9 +644,14 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
                                   "fi_reg_flip_or_leave_before_store",
                                    VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
                                    args);
-        dirty->mAddr = load_data->addr;
-        dirty->mSize = sizeof(UWord);
-        dirty->mFx = Ifx_Write;
+
+        /* Skip registering memory writing if not enabled. */
+        if(tool_data->write_back_flip) {
+            /* Open issue: Can we predict the exact byte here w.r.t to full_size? */
+            dirty->mAddr = load_data->addr;
+            dirty->mSize = 1;
+            dirty->mFx = Ifx_Write;
+        }
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);
@@ -579,13 +663,15 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
     return IRTemp_INVALID;
 }
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline Bool fi_reg_instrument_store(toolData *tool_data,
                                     XArray *loads,
                                     XArray *replacements,
                                     IRExpr **expr,
                                     IRExpr *address,
                                     IRSB *sb) {
+    /* RdTmp is of course the only relevant expression. */
     if((*expr)->tag == Iex_RdTmp) {
         add_replacement(replacements,
                         (*expr)->Iex.RdTmp.tmp,
@@ -604,7 +690,9 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
     return False;
 }
 
-// ----------------------------------------------------------------------------
+/* Helper to add a replacement entry into `list`, replacing `old_temp` by 
+   `new_temp`. */
+/* --------------------------------------------------------------------------*/
 static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_temp) {
     if(new_temp != IRTemp_INVALID) {
         ReplaceData data = (ReplaceData) { old_temp, new_temp };
@@ -613,22 +701,25 @@ static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_tem
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Checks a given expression for temps that need to be replaced. */
+/* --------------------------------------------------------------------------*/
 static inline void replace_temps(XArray *replacements, IRExpr **expr) {
     ReplaceData key = (ReplaceData) { (*expr)->Iex.RdTmp.tmp, 0 };
     Word first, last;
 
     if(VG_(lookupXA)(replacements, &key, &first, &last)) {
-        // unless copied, all uses of an IRTemp share the same IRExpr,
-        // so otherwise this would change previous uses as well
+        /* Unless copied, all uses of an IRTemp share the same IRExpr,
+           so otherwise this would change previous uses as well. */
         *expr = deepCopyIRExpr(*expr);
         ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
         (*expr)->Iex.RdTmp.tmp = replace_data->new_temp;
     } 
 }
 
-// ----------------------------------------------------------------------------
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_add_pre_dirty_modifiers(toolData *tool_data, IRDirty *st, IRSB *sb) {
+    /* This seems to be the only reliable test. */
     if(st->needsBBP) {
         Int i = 0;
         for(; i < st->nFxState; ++i) {
@@ -640,18 +731,19 @@ inline void fi_reg_add_pre_dirty_modifiers(toolData *tool_data, IRDirty *st, IRS
     }
 }
 
-// ----------------------------------------------------------------------------
+/* This method checks the signature of dirty-call `st` and fxState `nFx` to
+   determine the offsets that are used. */
+/* --------------------------------------------------------------------------*/
 static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                                    IRDirty *st,
                                                    Int nFx,
                                                    IRSB *sb) {
-    // just some variables to deal with anonymous type st->fxState[i]
+    /* Just some variables to deal with anonymous type st->fxState[i].*/
     UShort offset = st->fxState[nFx].offset, 
            size = st->fxState[nFx].size;
     UChar nRepeats = st->fxState[nFx].nRepeats, 
           repeatLen = st->fxState[nFx].repeatLen;
     
-    // Read indices from offsets in range
     if(nRepeats > 0) {
         UShort i = 0;
 
@@ -672,7 +764,10 @@ static inline void analyze_dirty_and_add_modifiers(toolData *tool_data,
     }
 }
 
-// ----------------------------------------------------------------------------
+/* For a given offset `j`, originating from offset `initial_offset`,
+   this method will look for the occupancies of this offset and prevents
+   collisions (multiple calls on the same IRTemp). */
+/* --------------------------------------------------------------------------*/
 static inline void add_modifier_for_offset(toolData *tool_data,
                                            Int j,
                                            Int initial_offset,
@@ -692,10 +787,14 @@ static inline void add_modifier_for_offset(toolData *tool_data,
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Wrapper for fi_reg_flip_or_leave_no_state_list to be called from VEX IR,
+   this will read the data from `offset` at `bp` and write back the flipped
+   value. This is called before reg-reading IRDirty calls.
+/* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
                                                                    toolData *tool_data,
                                                                    Int offset) {
+    /* Validity test.*/
     if(tool_data->reg_origins[offset] != NULL) {
         UWord data = *(UWord*)(((UChar*) bp) + offset);
 
@@ -706,7 +805,9 @@ static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
     }
 }
 
-// ----------------------------------------------------------------------------
+/* A method that is configuring and inserting the helper function before an
+   IRDirty calls. */
+/* --------------------------------------------------------------------------*/
 static inline void add_modifier_for_register(toolData *tool_data,
                                              Int offset,
                                              SizeT size,

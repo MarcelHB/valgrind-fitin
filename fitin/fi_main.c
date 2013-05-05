@@ -45,12 +45,6 @@
 #include "fitin.h"
 #include "fi_reg.h"
 
-#if __x86_64__
-#define SIZE_SUFFIX(n) n ## 64
-#else
-#define SIZE_SUFFIX(n) n ## 32
-#endif
-
 static const unsigned int MAX_STR_SIZE = 512;
 static enum exitValues {
     EXIT_SUCCESS,
@@ -326,7 +320,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
                                args);
-        di->tmp = newIRTemp(sbOut->tyenv, SIZE_SUFFIX(Ity_I));
+        di->tmp = newIRTemp(sbOut->tyenv, td->gWordTy);
 
         st = IRStmt_Dirty(di);
         addStmtToIRSB(sbOut, st);
@@ -395,6 +389,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     if(!tData.register_lists_loaded) {
         initialize_register_lists(layout->total_sizeB);
         tData.register_lists_loaded = True;
+        tData.gWordTy = gWordTy;
     }
 
     // FITIn-reg: the list of loads
@@ -463,7 +458,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
-                        if(load_data->ty <= SIZE_SUFFIX(Ity_I)) {
+                        if(load_data->ty <= tData.gWordTy) {
                             load_data->dest_temp = st->Ist.WrTmp.tmp;
                             fi_reg_add_temp_load(loads, load_data);
                         } 
@@ -471,6 +466,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     } else {
                         fi_reg_add_load_on_get(&tData, 
                                                loads,
+                                               st->Ist.WrTmp.tmp,
                                                st->Ist.WrTmp.data);
                     }
                     break;

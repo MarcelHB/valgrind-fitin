@@ -77,6 +77,7 @@ typedef struct _toolData {
     Addr *reg_origins;
     // FITIn-reg: loaded and original sizes
     SizeT *reg_load_sizes;
+    IRType gWordTy;
 } toolData;
 
 #endif /* __FITIN_H */
