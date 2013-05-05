@@ -55,14 +55,14 @@ static IRTemp instrument_access_tmp(toolData *tool_data,
                                     IRType ty,
                                     IRSB *sb);
 
-/* Helper function to properly add a LoadData into the appropriate list. */
+/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
     VG_(addToXA)(list, data);
     VG_(sortXA)(list);
 }
 
-/* Function to be used by XArray to sort loads by destination IRTemp. */
+/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 Int fi_reg_compare_loads(void *l1, void *l2) {
     IRTemp t1 = ((LoadData*)l1)->dest_temp;
@@ -71,7 +71,7 @@ Int fi_reg_compare_loads(void *l1, void *l2) {
     return (t1 == t2) ? 0 : ((t1 < t2) ? -1 : 1);
 }
 
-/* Function to be used by XArray to sort replacements by replacable IRTemp. */
+/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 Int fi_reg_compare_replacements(void *r1, void *r2) {
     IRTemp t1 = ((ReplaceData*)r1)->old_temp;
@@ -265,7 +265,7 @@ inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  Word state_list_index) {
     tool_data->loads++;
 
-    if(tool_data->injections == 0) {
+    if(tool_data->injections == 0 && state_list_index != LOAD_STATE_INVALID_INDEX) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
         return flip_or_leave(tool_data, data, state);
@@ -357,9 +357,7 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
     return data;
 }
 
-/* This method must be used if we know that data is definitely read from 
-   memory (syscall). It takes the address `a` and the size `size` to check
-   for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
+/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;

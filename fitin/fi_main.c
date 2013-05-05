@@ -78,7 +78,10 @@ typedef struct _Monitorable {
     ULong monLstWriteIsn;
 } Monitorable;
 
+static toolData tData;
+
 /* Compare two Monitorables. Needed for an ordered list */
+/* --------------------------------------------------------------------------*/
 static Int cmpMonitorable (void *v1, void *v2) {
     Monitorable m1 = *(Monitorable *)v1;
     Monitorable m2 = *(Monitorable *)v2;
@@ -91,8 +94,7 @@ static Int cmpMonitorable (void *v1, void *v2) {
     return 0;
 }
 
-static toolData tData;
-
+/* --------------------------------------------------------------------------*/
 static void initTData() {
     tData.instAddr = (Addr)NULL;
     tData.monitoredInst = False;
@@ -122,6 +124,7 @@ static void initTData() {
 
 /* Check whether the instruction at 'instAddr' is in the function with the name
    in 'fnc' */
+/* --------------------------------------------------------------------------*/
 static inline Bool instInFunc(Addr instAddr, Char *fnc) {
     Char fnname[MAX_STR_SIZE];
     return (VG_(get_fnname)(instAddr, fnname, sizeof(fnname))
@@ -129,6 +132,7 @@ static inline Bool instInFunc(Addr instAddr, Char *fnc) {
 }
 
 /* If the stack shrinks the Monitorables should be inbalidated */
+/* --------------------------------------------------------------------------*/
 static __inline__
 void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
     Word size = 0, i = 0;
@@ -144,9 +148,11 @@ void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
         }
     }
 }
+
 /* Checks whether an instruction with the address 'instAddr' comes from the include path 'incl'.
    We need debug information in the executable to do this.
    */
+/* --------------------------------------------------------------------------*/
 static inline Bool instInInclude(Addr instAddr, char *incl) {
 
     Char filename[MAX_STR_SIZE];
@@ -172,8 +178,10 @@ static inline Bool instInInclude(Addr instAddr, char *incl) {
     return retval;
 
 }
+
 /* Check whether the instruction is a possible valid target.
  */
+/* --------------------------------------------------------------------------*/
 static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
@@ -190,6 +198,7 @@ static inline Bool monitorInst(Addr instAddr) {
 }
 
 /* A simple instruction counter. */
+/* --------------------------------------------------------------------------*/
 static inline void incrInst() {
     tData.instCnt++;
     if(tData.instLmt && tData.instCnt >= tData.instLmt) {
@@ -202,6 +211,7 @@ static inline void incrInst() {
 /* FITIn uses several command line options.
    Valgrind helps to parse them.
  */
+/* --------------------------------------------------------------------------*/
 static Bool fi_process_cmd_line_option(Char *arg) {
 
     if VG_STR_CLO(arg, "--fnname", tData.filtstr) {
@@ -223,6 +233,7 @@ static Bool fi_process_cmd_line_option(Char *arg) {
     return True;
 }
 
+/* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
         "    --fnname=<name>           monitor instructions in functon <name> \n"
@@ -240,12 +251,14 @@ static void fi_print_usage(void) {
     );
 }
 
+/* --------------------------------------------------------------------------*/
 static void fi_print_debug_usage(void) {
     VG_(printf)(
         "    (none)\n"
     );
 }
 
+/* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
 }
 
@@ -258,6 +271,7 @@ static void fi_post_clo_init(void) {
  *  The returned value indicates whether the loaded address is revelant for variable
  *  tracing.
  */
+/* --------------------------------------------------------------------------*/
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
                                          SizeT size) {
@@ -267,12 +281,9 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
 
     tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
 
-    // Always increment all overall load operations
-    td->loads++;
-
-    // FITIn-reg: no more injections to do
-    if(td->injections != 0) {
-        return 0;
+    /* Stop doing anything after the injection. */
+    if(td->injections > 0) {
+        return LOAD_STATE_INVALID_INDEX;
     }
 
     key.monAddr = dataAddr;
@@ -305,6 +316,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
  * The returned value is a pair of a load marker and an index to the load state list 
  * where relevancy and address can be found.
  */
+/* --------------------------------------------------------------------------*/
 static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     if (expr->tag == Iex_Load) {
         IRDirty *di;
@@ -325,11 +337,6 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         st = IRStmt_Dirty(di);
         addStmtToIRSB(sbOut, st);
 
-        if(VG_(clo_verbosity) > 1) {
-            ppIRStmt(st);
-            VG_(printf)("\nLoad instrumented: instAddr: 0x%08x\n", td->instAddr);
-        }
-
         load_data->ty = expr->Iex.Load.ty;
         load_data->addr = expr->Iex.Load.addr;
         load_data->state_list_index = di->tmp;
@@ -340,14 +347,15 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     return NULL;
 }
 
-// ----------------------------------------------------------------------------
+/* Allocates shadow register fields, with `size` being the guest state size. */
+/* --------------------------------------------------------------------------*/
 static inline void initialize_register_lists(Int size) {
     tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
     VG_(memset)(tData.reg_origins, 0, sizeof(Addr) * size);
 
+    /* Initialize with 0xFF is equivalent to IRTemp_INVALID. */
     tData.reg_temp_occupancies =
         VG_(malloc)("fi.init.reg_temp_occupancies", sizeof(IRTemp) * size);
-    // see IRTemp_INVALID
     VG_(memset)(tData.reg_temp_occupancies, 0xFF, sizeof(IRTemp) * size);
 
     tData.reg_load_sizes =
@@ -368,12 +376,13 @@ static inline void initialize_register_lists(Int size) {
                                                            &(expr), \
                                                            sbOut, \
                                                            True)
-static
-IRSB *fi_instrument ( VgCallbackClosure *closure,
-                      IRSB *sbIn,
-                      VexGuestLayout *layout,
-                      VexGuestExtents *vge,
-                      IRType gWordTy, IRType hWordTy ) {
+
+/* --------------------------------------------------------------------------*/
+static IRSB *fi_instrument(VgCallbackClosure *closure,
+                           IRSB *sbIn,
+                           VexGuestLayout *layout,
+                           VexGuestExtents *vge,
+                           IRType gWordTy, IRType hWordTy ) {
     IRSB      *sbOut;
     IRStmt    *st;
     IRExpr **argv;
@@ -386,13 +395,13 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
         VG_(tool_panic)("host/guest word size mismatch");
     }
     
+    /* Conditional because we need that information only once. */
     if(!tData.register_lists_loaded) {
         initialize_register_lists(layout->total_sizeB);
         tData.register_lists_loaded = True;
         tData.gWordTy = gWordTy;
     }
 
-    // FITIn-reg: the list of loads
     loads = VG_(newXA)(VG_(malloc), 
                            "fi.reg.load.list",
                            VG_(free),
@@ -400,7 +409,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     VG_(setCmpFnXA)(loads, fi_reg_compare_loads);
     VG_(sortXA)(loads);
 
-    // FITIn-reg: the list of replacement rules for IRTemps
     replacements = VG_(newXA)(VG_(malloc),
                               "fi.reg.replace.list",
                               VG_(free),
@@ -408,17 +416,15 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
 
-    /* Set up SB */
+    /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
-
-    // Copy verbatim any IR preamble preceding the first IMark
     i = 0;
     while (i < sbIn->stmts_used && sbIn->stmts[i]->tag != Ist_IMark) {
         addStmtToIRSB( sbOut, sbIn->stmts[i] );
         i++;
     }
 
-    for (/*use current i*/; i < sbIn->stmts_used; i++) {
+    for (; i < sbIn->stmts_used; i++) {
         st = sbIn->stmts[i];
 
         if (!st || st->tag == Ist_NoOp) {
@@ -429,18 +435,17 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
             tData.instAddr = st->Ist.IMark.addr;
             tData.monitoredInst = monitorInst(tData.instAddr);
 
+            /* Add the counter to every single IMark, no matter where. */
             argv = mkIRExprVec_0();
             di = unsafeIRDirty_0_N ( 0, "incrInst", VG_(fnptr_to_fnentry)(&incrInst), argv);
             addStmtToIRSB(sbOut, IRStmt_Dirty(di));
         }
 
-        // Instrument IRExpressions. Look for loads in the hierarchy and instrument them.
+        /* Check for correct function. */
         if(tData.monitoredInst) {
             switch (st->tag) {
-                case Ist_AbiHint:
-                case Ist_MBE:
-                    break;
                 case Ist_Put:
+                    /* PUTting something should not count as access. */
                     JUST_REPLACE_ACCESS(st->Ist.Put.data);
 
                     fi_reg_set_occupancy(&tData,
@@ -450,14 +455,18 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                                          sbOut);
                     break;
                 case Ist_PutI:
+                    /* The impact of those operation to the shadow registers
+                       is currently not supported! */
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->ix);
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
+                    /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
+                        /* This will ignore anything greater than platform size. */
                         if(load_data->ty <= tData.gWordTy) {
                             load_data->dest_temp = st->Ist.WrTmp.tmp;
                             fi_reg_add_temp_load(loads, load_data);
@@ -479,6 +488,8 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                                                 &(st->Ist.Store.data),
                                                 st->Ist.Store.addr,
                                                 sbOut)) {
+                        /* It was something else than a RdTmp, check it
+                           for temps. */
                         INSTRUMENT_ACCESS(st->Ist.Store.data);
                     }
                     break;
@@ -486,15 +497,18 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.Dirty.details->guard);
                     IRExpr **arg_ptr = st->Ist.Dirty.details->args;
 
+                    /* Check arguments. */
                     while(*arg_ptr != NULL) {
                         INSTRUMENT_ACCESS(*arg_ptr);
                         arg_ptr++;
                     }
 
+                    /* Check destination address in case of memFx. */
                     if(st->Ist.Dirty.details->mFx != Ifx_None) {
                         INSTRUMENT_ACCESS(st->Ist.Dirty.details->mAddr);
                     }
 
+                    /* Check for reads from registers. */
                     fi_reg_add_pre_dirty_modifiers(&tData, st->Ist.Dirty.details, sbOut);
                     break;
                 case Ist_CAS:                    
@@ -518,7 +532,6 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
                     break;
             }
 
-            //print monitored instructions
             if(VG_(clo_verbosity) > 1) {
                 ppIRStmt(st);
                 VG_(printf)("\n");
@@ -534,6 +547,7 @@ IRSB *fi_instrument ( VgCallbackClosure *closure,
     return sbOut;
 }
 
+/* --------------------------------------------------------------------------*/
 static void fi_fini(Int exitcode) {
     switch(exitcode) {
         case EXIT_FAIL:
@@ -583,8 +597,8 @@ static void fi_fini(Int exitcode) {
     VG_(printf)("Instructions executed: %d\n", tData.instCnt);
 }
 
-static
-Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
+/* --------------------------------------------------------------------------*/
+static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     if (!VG_IS_TOOL_USERREQ('F', 'I', args[0])
             && VG_USERREQ__GDB_MONITOR_COMMAND != args[0]) {
         return False;
@@ -611,6 +625,7 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
                 Word i = first;
                 Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
                 
+                /* Let's reactivate them and save some space. */
                 other_mon->monValid = True;
 
                 if(args[2] > other_mon->monSize) {
@@ -652,9 +667,9 @@ Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     return True;
 }
 
-// The load states can be dropped after leaving client code to keep it
-// small.
-// ----------------------------------------------------------------------------
+/* The load states can be dropped after leaving client code to keep it
+   small. */
+/* --------------------------------------------------------------------------*/
 static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
     VG_(deleteXA)(tData.load_states);
     tData.load_states = VG_(newXA)(VG_(malloc),
@@ -662,13 +677,16 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    VG_(free),
                                    sizeof(LoadState));
 }
-// ----------------------------------------------------------------------------
+
+/* Callback on syscalls before reading from registers, we can use the offset
+   to get all the data we need. */
+/* --------------------------------------------------------------------------*/
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
                                PtrdiffT offset, SizeT size) {
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
-
         if(tData.reg_origins[offset] != NULL) {
             UWord data; 
+            /* This seems to ve the only way to access registers here. */
             VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
             data = fi_reg_flip_or_leave_no_state_list(&tData,
                                                       data,
@@ -678,10 +696,10 @@ static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
     }
 }
 
-// This method will check for every `size` bytes, beginning at `a` whether there
-// exists a monitorable. Otherwise, we can't handle bytes that are located away
-// from `a`, such as arrays or strings.
-// ----------------------------------------------------------------------------
+/* This method will check for every `size` bytes, beginning at `a` whether there
+   exists a monitorable. Otherwise, we can't handle bytes that are located away
+   from `a`, such as arrays or strings. */
+/* --------------------------------------------------------------------------*/
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
                                Addr a, SizeT size) {
 
@@ -704,13 +722,15 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
     }
 }
 
-// ----------------------------------------------------------------------------
+/* Callback for mem on ascii data. Passes strlen + 1 to fi_reg_on_mem_read. */
+/* --------------------------------------------------------------------------*/
 static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
                                    Addr a) {
     SizeT strlen = VG_(strlen)((Char*) a) + 1;
     fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
+/* --------------------------------------------------------------------------*/
 static void fi_pre_clo_init(void) {
     VG_(details_name)            ("FITIn");
     VG_(details_version)         (NULL);
@@ -731,7 +751,6 @@ static void fi_pre_clo_init(void) {
     initTData();
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
-    // FITIn-reg
     VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
     VG_(track_pre_reg_read)(fi_reg_on_reg_read);
     VG_(track_pre_mem_read)(fi_reg_on_mem_read);
