@@ -5,7 +5,7 @@
 #include "pub_tool_machine.h"
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
-#include "pub_tool_debuginfo.h"
+#include "pub_tool_libcprint.h"
 #include "pub_tool_options.h"
 
 /* ------- Protoypes, please scroll down for more info  --------*/
@@ -123,7 +123,7 @@ static inline void update_reg_origins(toolData *tool_data,
     Int i = 0;
     for(; i < size; ++i) {
         /* NULL must not be incremented. */
-        Addr offset_i = (origin_offset == NULL ? NULL : origin_offset + i);
+        Addr offset_i = (origin_offset == 0 ? 0 : origin_offset + i);
         tool_data->reg_origins[offset+i] = offset_i;
     }
 }
@@ -131,7 +131,7 @@ static inline void update_reg_origins(toolData *tool_data,
 /* Function that is doing the actual writing to `tool_data`. Starting at
    `offset`, it writes for the loaded size and the original monitoring size
    down to the shadows field. Starting at `offset`, it writes down as many
-   bytes as `left` is large, 0 meaning 'last byte' of this load.
+   bytes as `left` is large, 0 meaning 'last byte' of this load.*/
 /* --------------------------------------------------------------------------*/
 static inline void update_reg_load_sizes(toolData *tool_data,
                                          Int offset,
@@ -172,10 +172,10 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
         if(VG_(lookupXA)(loads, &key, &first, &last)) {
             LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
 
-            args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
-                                   mkIRExpr_HWord(offset),
-                                   mkIRExpr_HWord(size),
-                                   IRExpr_RdTmp(load_data->state_list_index));
+            args = mkIRExprVec_4(mkIRExpr_HWord((UInt) tool_data),
+                                 mkIRExpr_HWord(offset),
+                                 mkIRExpr_HWord(size),
+                                 IRExpr_RdTmp(load_data->state_list_index));
             dirty = unsafeIRDirty_0_N(0,
                                       "fi_reg_set_occupancy_origin",
                                       VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
@@ -211,7 +211,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 
         tool_data->reg_temp_occupancies[offset] = IRTemp_INVALID;
 
-        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) tool_data),
                              mkIRExpr_HWord(offset),
                              mkIRExpr_HWord(size));
         dirty = unsafeIRDirty_0_N(3,
@@ -261,6 +261,11 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
    The return value may be flipped or not but must be used for replacing the
    original acccessed IRTemp in either case. */
 /* --------------------------------------------------------------------------*/
+/* Prevents warning. */
+UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
+																				  UWord data,
+																					Word state_list_index);
+
 inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  UWord data,
                                                  Word state_list_index) {
@@ -279,6 +284,12 @@ inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
    done if the original address of the IRTemp and the destination `address` are
    different. */
 /* --------------------------------------------------------------------------*/
+/* Prevents warning. */
+UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
+                                        UWord data,
+                                        Addr address,
+                                        Word state_list_index);
+
 inline UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
                                                UWord data,
                                                Addr address,
@@ -523,7 +534,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
             
         new_temp = newIRTemp(sb->tyenv, ty);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_3(mkIRExpr_HWord(tool_data),
+        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) tool_data),
                              IRExpr_RdTmp(access_temp),
                              IRExpr_RdTmp(load_data->state_list_index));
         dirty = unsafeIRDirty_0_N(3,
@@ -651,7 +662,7 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
                 
         new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_4(mkIRExpr_HWord(tool_data),
+        args = mkIRExprVec_4(mkIRExpr_HWord((UInt) tool_data),
                              IRExpr_RdTmp(access_temp), 
                              address,
                              IRExpr_RdTmp(load_data->state_list_index));
@@ -804,13 +815,13 @@ static inline void add_modifier_for_offset(toolData *tool_data,
 
 /* Wrapper for fi_reg_flip_or_leave_no_state_list to be called from VEX IR,
    this will read the data from `offset` at `bp` and write back the flipped
-   value. This is called before reg-reading IRDirty calls.
+   value. This is called before reg-reading IRDirty calls. */
 /* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
                                                                    toolData *tool_data,
                                                                    Int offset) {
     /* Validity test.*/
-    if(tool_data->reg_origins[offset] != NULL) {
+    if(tool_data->reg_origins[offset] != 0) {
         UWord data = *(UWord*)(((UChar*) bp) + offset);
 
         data = fi_reg_flip_or_leave_no_state_list(tool_data,
@@ -828,7 +839,7 @@ static inline void add_modifier_for_register(toolData *tool_data,
                                              SizeT size,
                                              IRSB *sb) {
     IRStmt *st;
-    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord(tool_data),
+    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord((UInt) tool_data),
                                   mkIRExpr_HWord(offset));
 
     IRDirty *di = unsafeIRDirty_0_N(2,

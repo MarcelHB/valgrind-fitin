@@ -46,11 +46,11 @@
 #include "fi_reg.h"
 
 static const unsigned int MAX_STR_SIZE = 512;
-static enum exitValues {
+typedef enum exitValues {
     EXIT_SUCCESS,
     EXIT_FAIL,
     EXIT_STOPPED,
-};
+} ExitValues;
 
 static void fi_fini(Int exitcode);
 
@@ -95,7 +95,7 @@ static Int cmpMonitorable (void *v1, void *v2) {
 }
 
 /* --------------------------------------------------------------------------*/
-static void initTData() {
+static void initTData(void) {
     tData.instAddr = (Addr)NULL;
     tData.monitoredInst = False;
     tData.loads = 0;
@@ -199,7 +199,7 @@ static inline Bool monitorInst(Addr instAddr) {
 
 /* A simple instruction counter. */
 /* --------------------------------------------------------------------------*/
-static inline void incrInst() {
+static inline void incrInst(void) {
     tData.instCnt++;
     if(tData.instLmt && tData.instCnt >= tData.instLmt) {
         fi_fini(EXIT_STOPPED);
@@ -289,12 +289,11 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
     key.monAddr = dataAddr;
 
     if(VG_(clo_verbosity) > 1) {
-        VG_(printf)("[FITIn] Load: %p (size: %u)\n", (void*) dataAddr, size);
+        VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
 
     // iterate over monitorables list
     if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Word i = first;
         Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
         if(mon->monValid) {
@@ -325,7 +324,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
         Int size = sizeofIRType(expr->Iex.Load.ty);
-        args = mkIRExprVec_3(mkIRExpr_HWord(td),
+        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) td),
                              expr->Iex.Load.addr,
                              mkIRExpr_HWord(size));
         di = unsafeIRDirty_0_N(3,
@@ -564,8 +563,8 @@ static void fi_fini(Int exitcode) {
         Monitorable *mon = (Monitorable *)VG_(indexXA)(mons, i);
 
         if(VG_(clo_verbosity) > 1) {
-            VG_(printf)("[FITIn] Monitorable memory address: 0x%016llX\n", mon->monAddr);
-            VG_(printf)("[FITIn]                    size: %d\n", mon->monSize);
+            VG_(printf)("[FITIn] Monitorable memory address: %p\n", (void*) mon->monAddr);
+            VG_(printf)("[FITIn]                    size: %lu\n", (unsigned long) mon->monSize);
         }
     }
 
@@ -579,9 +578,9 @@ static void fi_fini(Int exitcode) {
     }
 
     VG_(printf)("[FITIn] Totals:\n");
-    VG_(printf)("[FITIn] Overall variable accesses: %d\n", tData.loads);
-    VG_(printf)("[FITIn] Monitored variable accesses: %d\n", tData.monLoadCnt);
-    VG_(printf)("[FITIn] Instructions executed: %d\n", tData.instCnt);
+    VG_(printf)("[FITIn] Overall variable accesses: %lu", (unsigned long) tData.loads);
+    VG_(printf)("[FITIn] Monitored variable accesses: %lu\n", (unsigned long) tData.monLoadCnt);
+    VG_(printf)("[FITIn] Instructions executed: %lu\n", (unsigned long) tData.instCnt);
 }
 
 /* --------------------------------------------------------------------------*/

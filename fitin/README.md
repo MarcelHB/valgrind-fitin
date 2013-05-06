@@ -97,9 +97,10 @@ For more information, please consult the ```README``` inside.
   addresses being monitored. For uses of different alignments, use
   ```FITIN_MONITOR_ADDRESS``` instead of ```FITIN_MONITOR_VARIABLE```
   for every byte that may be a start address.
+* Syscalls reading from registers are not yet supported, as hard to
+  test.
 * Limited support for rotating register files: not respected for IRDirty
-  helpers (some special instructions) and syscalls that read from
-  those registers.
+  helpers (some special instructions).
 
 ## Reporting of Bugs, Feature Requests, Support
 
