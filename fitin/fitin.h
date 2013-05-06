@@ -7,20 +7,6 @@
 
 #include "fi_client.h"
 
-typedef
-	enum {
-		VG_USERREQ__MON_VAR = VG_USERREQ_TOOL_BASE('F','I'),
-		VG_USERREQ__MON_ARR,
-		VG_USERREQ__MON_MEM,
-		VG_USERREQ__UMON_VAR,
-		VG_USERREQ__UMON_ARR,
-		VG_USERREQ__UMON_MEM,
-		VG_USERREQ__INJ_B_VAR,
-		VG_USERREQ__INJ_B_MEM,
-		VG_USERREQ__CINJ_B_VAR,
-		
-	} Vg_FITInClientRequest;
-
 /* In order to monitor only a subset of the called functions we need filter
    the correct instructions. This can be done in various ways. I.e. the
    functions may be filtered by function name.

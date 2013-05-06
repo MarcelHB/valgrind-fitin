@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-#include "../../../valgrind/include/valgrind/fi_client.h"
+#include "../../include/valgrind/fi_client.h"
 
 int main() {
     struct timeval tv, tv_copy;

@@ -19,7 +19,6 @@
         "vg_params": "--mod-bit=1 --mod-load-time=3 --persist-flip=yes"
     },{
         "title": "Tracks a register tunneled load (x86-test only).",
-        "cflags": "-m32",
         "files": ["sample4.c"],
         "output": "sample4",
         "expected": "2",
@@ -43,14 +42,13 @@
         "expected": "4",
         "vg_params": "--mod-bit=1 --mod-load-time=10 --fnname=just_do_it"
     },{
-        "title": "Flips on memory syscall with offset.",
+        "title": "Flips on memory syscall with offset (Linux only)",
         "files": ["sample7.c"],
         "output": "sample7",
         "expected": "4",
         "vg_params": "--mod-bit=2 --mod-load-time=2"
     },{
         "title": "Handles Valgrind's dirty helpers (x86-test only).",
-        "cflags": "-m32",
         "files": ["sample8.c"],
         "output": "sample8",
         "expected": "1",

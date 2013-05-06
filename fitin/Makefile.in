@@ -586,7 +586,7 @@ LIBREPLACEMALLOC_LDFLAGS_MIPS32_LINUX = \
 	-Wl,--no-whole-archive
 
 EXTRA_DIST = docs/fi-manual.xml
-pkginclude_HEADERS = fitin.h fi_reg.h
+pkginclude_HEADERS = fitin.h fi_reg.h fi_client.h
 FITIN_SOURCES_COMMON = fi_main.c fi_reg.c
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES = \
 	$(FITIN_SOURCES_COMMON)

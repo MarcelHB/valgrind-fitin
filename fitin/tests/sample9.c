@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "../../../valgrind/include/valgrind/fi_client.h"
+#include "../../include/valgrind/fi_client.h"
 
 int main() {
     unsigned int a = 0;

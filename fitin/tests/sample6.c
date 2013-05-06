@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "../../../valgrind/include/valgrind/fi_client.h"
+#include "../../include/valgrind/fi_client.h"
 
 int just_do_it() {
     int a = 1;

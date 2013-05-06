@@ -2,7 +2,7 @@ include $(top_srcdir)/Makefile.tool.am
 
 EXTRA_DIST = docs/fi-manual.xml
 
-pkginclude_HEADERS = fitin.h fi_reg.h
+pkginclude_HEADERS = fitin.h fi_reg.h fi_client.h
 
 #----------------------------------------------------------------------------
 # fitin-<platform>

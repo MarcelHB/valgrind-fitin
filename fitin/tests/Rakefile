@@ -57,7 +57,7 @@ task :benchmark_dhry => [:build_dhry_benchmark] do
     puts "\n[RESULT] avg: #{time3/BENCHMARK_RUNS}s"
   ensure
     log_file.close
-    File.unlink(log_file)
+    File.unlink(log_file.path)
   end
 end
 
@@ -162,7 +162,7 @@ def run_test(test)
     end
   ensure
     log_file.close
-    File.unlink(log_file)
+    File.unlink(log_file.path)
   end
 end
 

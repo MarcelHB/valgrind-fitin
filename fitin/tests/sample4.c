@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "../../../valgrind/include/valgrind/fi_client.h"
+#include "../../include/valgrind/fi_client.h"
 
 /** This test won't flip anything for the actual logic, but at least
  *  it ensure the register tracking feature is working and that
@@ -13,7 +13,7 @@ int main() {
 
     asm("movzxb %0, %%eax"::"m"(a):"%eax");
     asm("inc %eax");
-    asm("movl %%eax, %0":"=m"(b)::);
+    asm("movl %%eax, %0":"=m"(b));
     c += b;
 
     printf("%d\n", b);
