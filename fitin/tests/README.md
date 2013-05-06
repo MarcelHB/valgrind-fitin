@@ -7,7 +7,7 @@ developing this solution.
 
 ## Run
 
-Please install an official Ruby release in order to run the tests
+Please install an official Ruby v1.9+ release in order to run the tests
 automatically (http://www.ruby-lang.org/en/).
 
 Once installed, please execute ```gem install rake```. Now, the
@@ -20,7 +20,7 @@ Execute ```rake TASK``` with TASK being one of the following commands:
 * ```benchmark_dhry```: Builds and executes a tiny benchmark containing
   three samples.
 
-With ```tests``` being the default action.
+With ```tests``` being the default task.
 
 Test runs and options are specified by ```tests.json```, other
 parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
