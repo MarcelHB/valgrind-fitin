@@ -665,24 +665,6 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    sizeof(LoadState));
 }
 
-/* Callback on syscalls before reading from registers, we can use the offset
-   to get all the data we need. */
-/* --------------------------------------------------------------------------*/
-static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
-                               PtrdiffT offset, SizeT size) {
-    if(tData.injections == 0 && part == Vg_CoreSysCall) {
-        if(tData.reg_origins[offset] != NULL) {
-            UWord data; 
-            /* This seems to ve the only way to access registers here. */
-            VG_(get_shadow_regs_area)(tid, &data, 0, offset, size);
-            data = fi_reg_flip_or_leave_no_state_list(&tData,
-                                                      data,
-                                                      offset);
-            VG_(set_shadow_regs_area)(tid, 0, offset, size, &data);
-        }
-    }
-}
-
 /* This method will check for every `size` bytes, beginning at `a` whether there
    exists a monitorable. Otherwise, we can't handle bytes that are located away
    from `a`, such as arrays or strings. */
@@ -739,7 +721,6 @@ static void fi_pre_clo_init(void) {
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
     VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
-    VG_(track_pre_reg_read)(fi_reg_on_reg_read);
     VG_(track_pre_mem_read)(fi_reg_on_mem_read);
     VG_(track_pre_mem_read_asciiz)(fi_reg_on_mem_read_str);
 }
