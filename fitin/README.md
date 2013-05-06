@@ -59,8 +59,8 @@ Please include ```fi_client.h``` from the Valgrind include-directory.
 For setting up monitoring of access to memory, use one of the following
 macros:
 
-* FITIN_MONITOR_VARIABLE(var)
-* FITIN_MONITOR_ADDRESS(ptr, size)
+* ```FITIN_MONITOR_VARIABLE(var)```
+* ```FITIN_MONITOR_ADDRESS(ptr, size)```
 
 Then compile the source code. Deactivating any optimization levels is
 strongly recommended, as optimazations by the compiler may render this

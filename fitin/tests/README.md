@@ -20,6 +20,8 @@ Execute ```rake TASK``` with TASK being one of the following commands:
 * ```benchmark_dhry```: Builds and executes a tiny benchmark containing
   three samples.
 
+With ```tests``` being the default action.
+
 Test runs and options are specified by ```tests.json```, other
 parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
 
