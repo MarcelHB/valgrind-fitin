@@ -324,7 +324,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
         Int size = sizeofIRType(expr->Iex.Load.ty);
-        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) td),
+        args = mkIRExprVec_3(mkIRExpr_HWord((HWord) td),
                              expr->Iex.Load.addr,
                              mkIRExpr_HWord(size));
         di = unsafeIRDirty_0_N(3,
