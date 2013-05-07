@@ -200,7 +200,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
         if(VG_(lookupXA)(loads, &key, &first, &last)) {
             LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
 
-            args = mkIRExprVec_4(mkIRExpr_HWord((UInt) tool_data),
+            args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
                                  mkIRExpr_HWord(offset),
                                  mkIRExpr_HWord(size),
                                  IRExpr_RdTmp(load_data->state_list_index));
@@ -239,7 +239,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 
         tool_data->reg_temp_occupancies[offset] = IRTemp_INVALID;
 
-        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) tool_data),
+        args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
                              mkIRExpr_HWord(offset),
                              mkIRExpr_HWord(size));
         dirty = unsafeIRDirty_0_N(3,
@@ -291,8 +291,8 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 /* --------------------------------------------------------------------------*/
 /* Prevents warning. */
 UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
-																				  UWord data,
-																					Word state_list_index);
+                                          UWord data,
+                                          Word state_list_index);
 
 inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  UWord data,
@@ -562,7 +562,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
             
         new_temp = newIRTemp(sb->tyenv, ty);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_3(mkIRExpr_HWord((UInt) tool_data),
+        args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
                              IRExpr_RdTmp(access_temp),
                              IRExpr_RdTmp(load_data->state_list_index));
         dirty = unsafeIRDirty_0_N(3,
@@ -690,7 +690,7 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
                 
         new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_4(mkIRExpr_HWord((UInt) tool_data),
+        args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
                              IRExpr_RdTmp(access_temp), 
                              address,
                              IRExpr_RdTmp(load_data->state_list_index));
@@ -867,7 +867,7 @@ static inline void add_modifier_for_register(toolData *tool_data,
                                              SizeT size,
                                              IRSB *sb) {
     IRStmt *st;
-    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord((UInt) tool_data),
+    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord((HWord) tool_data),
                                   mkIRExpr_HWord(offset));
 
     IRDirty *di = unsafeIRDirty_0_N(2,
