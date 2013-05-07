@@ -494,7 +494,7 @@ static inline IRTemp insert_size_widener(toolData *tool_data,
                                          IRType ty,
                                          IRSB *sb) {
     IROp op = Iop_INVALID;
-    Bool is64 = ty == Ity_I64;
+    Bool is64 = tool_data->gWordTy == Ity_I64;
 
     switch(ty) {
         case Ity_I8:
