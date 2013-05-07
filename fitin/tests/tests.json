@@ -39,6 +39,7 @@
         "title": "Deals with repeating variables on stack.",
         "files": ["sample6.c"],
         "output": "sample6",
+        "cflags": "-g",
         "expected": "4",
         "vg_params": "--mod-bit=1 --mod-load-time=10 --fnname=just_do_it"
     },{
