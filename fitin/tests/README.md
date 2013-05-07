@@ -5,6 +5,16 @@
 Here, you can see tests that have been used for evaluating and
 developing this solution.
 
+Not every platform and configuration will have all tests passing. Some
+are arch- or OS-specific, some compilers generate very strange code that
+will simply not work this way for FITIn.
+
+## Configuration
+
+It is important to set `-m32` or `-m64` in the `CFLAGS` and `LDFLAGS`
+of `rake.config.rb`, depending on your Valgrind build. Otherwise,
+Valgrind may complain about missing binaries (exit code 1).
+
 ## Run
 
 Please install an official Ruby v1.9+ release in order to run the tests

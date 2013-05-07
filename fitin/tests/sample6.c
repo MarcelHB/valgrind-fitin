@@ -30,6 +30,36 @@
 #include "../../include/valgrind/fi_client.h"
 
 /* This should be monitored as often as this function is called. */
+
+/* The daily chaos that makes this test fail on MacOSX (and maybe more?).
+   Here is the LLVM-GCC output of this function:
+  
+   ...
+   MOV EAX, [EBP-16]
+   ADD EAX, 1
+   MOV [EBP-16], EAX
+   MOV EAX, [EBP-16]
+   MOV [EBP-8], EAX
+   MOV EAX, [EBP-8]
+   MOV [EBP-4], EAX
+   MOV EAX, [EBP-4]
+   ...
+   RET
+
+   This gives two issues:
+   1. There are too many accesses on [EBP-16].
+   2. Who the hell on earth generates such code, even in -O0?
+
+   Btw. Valgrind on MacOSX is slow. If the compiled code looks similar?
+
+   This is what it is expected to look like:
+
+   MOV EAX, [EBP-x]
+   ADD EAX, 1
+   (MOV [EBP-x], EAX)
+   RET
+
+   */
 int just_do_it() {
     int a = 1;
     FITIN_MONITOR_VARIABLE(a);
