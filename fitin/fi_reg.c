@@ -253,20 +253,21 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
-inline void fi_reg_add_load_on_get(toolData *tool_data,
+inline Bool fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
                                    IRTemp new_temp,
                                    IRExpr *expr) {
     if(expr->tag == Iex_Get) {
+        Word first, last;
         Int offset = expr->Iex.Get.offset;
         IRTemp temp = tool_data->reg_temp_occupancies[offset];
         LoadData load_key;
+
         load_key.dest_temp = temp;
-        Word first, last;
 
         /* Does not contain anything interesting for us. */
         if(temp == IRTemp_INVALID) {
-            return;
+            return True;
         }
 
         if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
@@ -279,7 +280,11 @@ inline void fi_reg_add_load_on_get(toolData *tool_data,
 
             fi_reg_add_temp_load(loads, &new_load_data);
         }
+
+        return True;
     }
+
+    return False;
 }
 
 /* This dirty call must be called before any RdTmp access to an IRTemp which
@@ -656,6 +661,58 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
             break;
         }
     }
+}
+
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
+inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
+                                      XArray *loads,
+                                      IRExpr *expr,
+                                      IRTemp new_temp) {
+    if(expr->tag == Iex_Unop && expr->Iex.Unop.arg->tag == Iex_RdTmp) {
+        IROp op = expr->Iex.Unop.op;
+
+        /* IMPORTANT: 
+           This may have a severe impact onto programs! But there is a significant
+           reason to do this on 64bit machines. As visible for sample6.c, Valgrind
+           seems to generate code like that:
+
+           tN-1 = LOAD(...):32
+           tN = 64to32(32to64(tN-1)))
+           tN+1 = Add:32(tN, X:32)
+
+           while the actual code is something like:
+           
+           int a = 1;
+           a++;
+
+           On a plain-old int! If `a` is monitored on tN-1, 32to64 makes us loose 
+           the way to Add. If we expect to have only 1 access in the C snippet,
+           we actually have 2 more before the Add (which are not even necessary).
+
+           This skews the counter and causes a flip earlier than anticipacted from
+           the code, which is not desired at all in this case.
+           */
+        if(op == Iop_64to32 || op == Iop_32Sto64 || op == Iop_32Uto64) {
+            Word first, last;
+            LoadData load_key;
+
+            load_key.dest_temp = expr->Iex.Unop.arg->Iex.RdTmp.tmp;
+
+            if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
+                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+                LoadData new_load_data = *load_data;
+
+                new_load_data.dest_temp = new_temp;
+
+                fi_reg_add_temp_load(loads, &new_load_data);
+            }
+
+            return True;
+        }
+    }
+
+    return False;
 }
 
 /* Basically the same as instrument_access_tmp. But to be used on RdTmp on

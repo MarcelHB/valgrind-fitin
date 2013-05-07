@@ -460,6 +460,15 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
+                    /* IMPORTANT: please see fi_reg_add_load_on_resize.*/
+                    if(tData.gWordTy == Ity_I64 && 
+                            fi_reg_add_load_on_resize(&tData,
+                                                      loads,
+                                                      st->Ist.WrTmp.data,
+                                                      st->Ist.WrTmp.tmp)) {
+                        break;
+                    }
+
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);

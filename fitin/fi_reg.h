@@ -69,11 +69,20 @@ void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
 /* On GET, this method will test whether `expr` maps to a relevent occupancy,
    and in this case, it adds a copy of that original temp to the loads for
-   `new_temp`. */
-void fi_reg_add_load_on_get(toolData *tool_data,
+   `new_temp`. The return value states whther this expr was a GET. */
+Bool fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRTemp new_temp,
                             IRExpr *expr);
+
+/* This method is only needed on 64bit guests on a WrTmp. It checks `expr` for
+   the presence of some resizing Unops that will be ignored for access but used
+   to add a new load to `loads` for `new_temp`. Please see the implementation for
+   important details concerning this! */
+Bool fi_reg_add_load_on_resize(toolData *tool_data,
+                               XArray *loads,
+                               IRExpr *expr,
+                               IRTemp new_temp);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
    to insert helpers if appllicable. */
