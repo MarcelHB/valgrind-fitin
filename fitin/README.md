@@ -18,7 +18,7 @@ start address, a counter is increased - even if the data has been loaded
 into a register.
 
 If the counter - by whatever monitored has been accessed - hits
-```--mod-load-time``, it will attempt to flip the bit ```--mod-bit```
+```--mod-load-time```, it will attempt to flip the bit ```--mod-bit```
 before the actual read. 'Attempt' in terms of evaluating whether the
 desired bit is in range of the loaded data. If not, no flip can occur.
 The desired bit counts from the offset of the least significant bit of
@@ -43,9 +43,9 @@ Things that do not count as access (with ```a``` being monitored):
 * Copies: ```b = a;```, the copy is one access to ```a``` but any access
   to ```b``` is out of scope.
 * Identity assignments: ```a=a;```
-* Anonymous expressions: ```(a + 1) * 2```, again there is only one
+* Anonymous expressions: ```(a + b) * c```, again there is only one
   access before the addition.
-* Irregular access: ```((char*)&a) + 1)```, as this is not touching the
+* Irregular access: ```((char*)&a) + b)```, as this is not touching the
   start address at execution time (but a is wide enough, e.g. by
   ```int a;```).
 
@@ -92,6 +92,7 @@ For more information, please consult the ```README``` inside.
 ## Limitations
 
 * One fault injection per run.
+* Not supported data types: double, float, native vector types.
 * Monitoring across functions, only one per run (```--fnname```).
 * If accessing data from memory, the tool focuses on matching start
   addresses being monitored. For uses of different alignments, use
