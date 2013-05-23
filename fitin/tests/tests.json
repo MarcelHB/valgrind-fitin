@@ -66,5 +66,11 @@
         "output": "sample9",
         "expected": "16385",
         "vg_params": "--mod-bit=14 --mod-load-time=1 --persist-flip=yes"
+    },{
+        "title": "Flips memory if used by a Valgrind dirty helper (x86-test only)",
+        "files": ["sample10.c"],
+        "output": "sample10",
+        "expected": "0.0",
+        "vg_params": "--mod-bit=79 --mod-load-time=1"
     }]
 }

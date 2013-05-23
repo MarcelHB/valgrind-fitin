@@ -295,11 +295,11 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
    original acccessed IRTemp in either case. */
 /* --------------------------------------------------------------------------*/
 /* Prevents warning. */
-UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
-                                          UWord data,
-                                          Word state_list_index);
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
+                                                 UWord data,
+                                                 Word state_list_index);
 
-inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  UWord data,
                                                  Word state_list_index) {
     tool_data->loads++;
@@ -318,12 +318,12 @@ inline UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
    different. */
 /* --------------------------------------------------------------------------*/
 /* Prevents warning. */
-UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
-                                        UWord data,
-                                        Addr address,
-                                        Word state_list_index);
+static UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
+                                               UWord data,
+                                               Addr address,
+                                               Word state_list_index);
 
-inline UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
+static UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
                                                UWord data,
                                                Addr address,
                                                Word state_list_index) {
@@ -408,6 +408,15 @@ inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
     }
 
     return data;
+}
+
+/* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
+   reads on `a` by `size` bytes. */
+/* --------------------------------------------------------------------------*/
+static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(toolData *tool_data,
+                                                         Addr a,
+                                                         SizeT size) {
+    fi_reg_flip_or_leave_mem(tool_data, a, size);
 }
 
 /* See fi_reg.h */
@@ -840,6 +849,30 @@ inline void fi_reg_add_pre_dirty_modifiers(toolData *tool_data, IRDirty *st, IRS
             }
         }
     }
+}
+
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
+inline void fi_reg_add_pre_dirty_modifiers_mem(toolData *tool_data,
+                                               IRExpr *address,
+                                               Int size,
+                                               IRSB *sb) {
+    IRStmt *st;
+    IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+                                  address,
+                                  mkIRExpr_HWord(size));
+
+    IRDirty *di = unsafeIRDirty_0_N(3,
+                                   "fi_reg_flip_or_leave_mem_wrap",
+                                    VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_mem_wrap),
+                                    args);
+    di->mFx = Ifx_Modify;
+    di->mSize = size;
+    di->mAddr = address;
+
+    st = IRStmt_Dirty(di);
+    addStmtToIRSB(sb, st);
+
 }
 
 /* This method checks the signature of dirty-call `st` and fxState `nFx` to

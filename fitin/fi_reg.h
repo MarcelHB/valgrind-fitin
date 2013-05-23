@@ -90,6 +90,13 @@ void fi_reg_add_pre_dirty_modifiers(toolData *tool_data,
                                     IRDirty *di,
                                     IRSB *sb);
 
+/* The same as above, but for memory accesses by an IRDirty on `address` by
+   `size` bytes. */
+void fi_reg_add_pre_dirty_modifiers_mem(toolData *tool_data,
+                                        IRExpr *address,
+                                        Int size,
+                                        IRSB *sb);
+
 /* Whenever a PUT to an `offset` occurs, this method will analyze the
    expression `expr` for its relevancy and add the runtime helpers. */
 void fi_reg_set_occupancy(toolData *tool_data,

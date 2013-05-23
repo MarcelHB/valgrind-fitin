@@ -512,8 +512,16 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     }
 
                     /* Check destination address in case of memFx. */
-                    if(st->Ist.Dirty.details->mFx != Ifx_None) {
+                    IREffect fx = st->Ist.Dirty.details->mFx;
+                    if(fx != Ifx_None) {
                         INSTRUMENT_ACCESS(st->Ist.Dirty.details->mAddr);
+
+                        if(fx == Ifx_Read || fx == Ifx_Modify) {
+                            fi_reg_add_pre_dirty_modifiers_mem(&tData,
+                                                               st->Ist.Dirty.details->mAddr,
+                                                               st->Ist.Dirty.details->mSize,
+                                                               sbOut);
+                        }
                     }
 
                     /* Check for reads from registers. */
