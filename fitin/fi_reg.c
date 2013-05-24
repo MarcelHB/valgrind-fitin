@@ -120,8 +120,14 @@ static void fi_reg_set_occupancy_origin(toolData *tool_data,
     /* After an injection, update any (remaining) information as irrelevant. */
     if(tool_data->injections == 0) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-        update_reg_origins(tool_data, offset, size, state->location);
-        update_reg_load_sizes(tool_data, offset, size, state->full_size);
+        /* May be irrelevant at run time! */
+        if(state->relevant) {
+            update_reg_origins(tool_data, offset, size, state->location);
+            update_reg_load_sizes(tool_data, offset, size, state->full_size);
+        } else {
+            update_reg_origins(tool_data, offset, size, (Addr) NULL);
+            update_reg_load_sizes(tool_data, offset, size, 0);
+        }
     } else {
         update_reg_origins(tool_data, offset, size, (Addr) NULL);
         update_reg_load_sizes(tool_data, offset, size, 0);
