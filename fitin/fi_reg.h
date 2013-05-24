@@ -125,6 +125,8 @@ UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
    for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
 void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a, SizeT size);
 
+/* This method can be used to operate on a memory image `buffer` of Valgrind's
+   register shadow table, flipping at `offset` inside `size` bytes. */
 void fi_reg_flip_or_leave_registers(toolData *tool_data,
                                     UChar *buffer,
                                     PtrdiffT offset,

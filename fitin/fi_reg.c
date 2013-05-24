@@ -1007,6 +1007,7 @@ static inline void add_modifier_for_register(toolData *tool_data,
     addStmtToIRSB(sb, st);
 }
 
+/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_flip_or_leave_registers(toolData *tool_data,
                                            UChar *buffer,
@@ -1058,6 +1059,8 @@ inline void fi_reg_flip_or_leave_registers(toolData *tool_data,
     }
 }
 
+/* Performs a flip on a given buffer `buffer` within `size`,  supports write-back
+   for register `offset`.
 /* -------------------------------------------------------------------------------*/
 static inline void flip_or_leave_on_buffer(toolData *tool_data, 
                                            UChar *buffer,
