@@ -385,42 +385,6 @@ static inline UWord flip_or_leave(toolData *tool_data,
     return data;
 }
 
-/* See fi_reg.h */
-/* --------------------------------------------------------------------------*/
-inline UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
-                                                UWord data,
-                                                Int offset) {
-    tool_data->loads++;
-    tool_data->monLoadCnt++;
-
-    if(!tool_data->goldenRun &&
-        tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-        Int full_size_offset = offset * 2 + 1;
-        UChar *addr = get_destination_address((Addr) &data,
-                                              tool_data->reg_load_sizes[offset*2],
-                                              tool_data->modBit);
-
-        if(addr != NULL) {
-            *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
-
-            if(VG_(clo_verbosity) > 1) {
-                VG_(printf)("[FITIn] FLIP! Data from %p\n", (void*) tool_data->reg_origins[offset]);
-            }
-        }
-
-        /* Test for writing back into memory. */
-        optional_memory_writing(tool_data, 
-                                data,
-                                tool_data->reg_load_sizes[full_size_offset],
-                                tool_data->reg_origins[offset],
-                                addr != NULL);
-
-        tool_data->injections++;
-    }
-
-    return data;
-}
-
 /* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
    reads on `a` by `size` bytes. */
 /* --------------------------------------------------------------------------*/
@@ -962,22 +926,15 @@ static inline void add_modifier_for_offset(toolData *tool_data,
     }
 }
 
-/* Wrapper for fi_reg_flip_or_leave_no_state_list to be called from VEX IR,
+/* Wrapper for fi_reg_flip_or_leave_registers to be called from VEX IR,
    this will read the data from `offset` at `bp` and write back the flipped
    value. This is called before reg-reading IRDirty calls. */
 /* --------------------------------------------------------------------------*/
-static void VEX_REGPARM(2) fi_reg_flip_or_leave_no_state_list_wrap(void *bp,
-                                                                   toolData *tool_data,
-                                                                   Int offset) {
-    /* Validity test.*/
-    if(tool_data->reg_origins[offset] != 0) {
-        UWord data = *(UWord*)(((UChar*) bp) + offset);
-
-        data = fi_reg_flip_or_leave_no_state_list(tool_data,
-                                                  data,
-                                                  offset);
-        *(UWord*)(((UChar*) bp) + offset) = data;
-    }
+static void VEX_REGPARM(3) fi_reg_flip_or_leave_registers_wrap(void *bp,
+                                                               toolData *tool_data,
+                                                               SizeT size,
+                                                               Int offset) {
+    fi_reg_flip_or_leave_registers(tool_data, ((UChar*) bp) + offset, offset, size);
 }
 
 /* A method that is configuring and inserting the helper function before an
@@ -988,12 +945,13 @@ static inline void add_modifier_for_register(toolData *tool_data,
                                              SizeT size,
                                              IRSB *sb) {
     IRStmt *st;
-    IRExpr **args = mkIRExprVec_2(mkIRExpr_HWord((HWord) tool_data),
+    IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+                                  mkIRExpr_HWord(size),
                                   mkIRExpr_HWord(offset));
 
-    IRDirty *di = unsafeIRDirty_0_N(2,
-                                   "fi_reg_flip_or_leave_no_state_list_wrap",
-                                    VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_no_state_list_wrap),
+    IRDirty *di = unsafeIRDirty_0_N(3,
+                                   "fi_reg_flip_or_leave_registers_wrap",
+                                    VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_registers_wrap),
                                     args);
     di->nFxState = 1;
     di->fxState[0].fx = Ifx_Modify;

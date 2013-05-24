@@ -111,15 +111,6 @@ Int fi_reg_compare_loads(void *l1, void *l2);
 /* Function to be used by XArray to sort replacements by replacable IRTemp. */
 Int fi_reg_compare_replacements(void *l1, void *l2);
 
-/* To be called before reading from a register if there is no state list to use.
-   Instead, data from the register shadow fields is used. 
-
-   The caller must know the correct `offset` and do duplication checks in
-   advance (i.e. not calling 4 times this method on the same 32bit register). */
-UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data, 
-                                         UWord data,
-                                         Int offset);
-
 /* This method must be used if we know that data is definitely read from 
    memory (syscall). It takes the address `a` and the size `size` to check
    for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
