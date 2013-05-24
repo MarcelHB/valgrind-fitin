@@ -93,15 +93,14 @@ For more information, please consult the ```README``` inside.
 
 * One fault injection per run.
 * Not supported data types: double, float, native vector types.
-* Monitoring across functions, only one per run (```--fnname```).
+* Monitoring across functions, only one per run (```--fnname=```),
+  or all of the user code (```--include=``` to the source code).
 * If accessing data from memory, the tool focuses on matching start
   addresses being monitored. For uses of different alignments, use
   ```FITIN_MONITOR_ADDRESS``` instead of ```FITIN_MONITOR_VARIABLE```
   for every byte that may be a start address.
-* Syscalls reading from registers are not yet supported, as hard to
-  test.
 * Limited support for rotating register files: not respected for IRDirty
-  helpers (some special instructions).
+  helpers (some special instructions, not on x86).
 
 ## Reporting of Bugs, Feature Requests, Support
 

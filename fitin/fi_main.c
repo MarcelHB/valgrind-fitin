@@ -715,6 +715,19 @@ static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
     fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
+/* Callback for register syscalls. */
+/* --------------------------------------------------------------------------*/
+static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
+                               PtrdiffT offset, SizeT size) {
+    if(part == Vg_CoreSysCall) {
+        UChar *buf = VG_(malloc)("fi.reg.syscall.reg", size);
+        VG_(get_shadow_regs_area)(tid, buf, 0, offset, size);
+        fi_reg_flip_or_leave_registers(&tData, buf, offset, size);
+        VG_(set_shadow_regs_area)(tid, 0, offset, size, buf);
+        VG_(free)(buf);
+    }
+}
+
 /* --------------------------------------------------------------------------*/
 static void fi_pre_clo_init(void) {
     VG_(details_name)            ("FITIn");
@@ -737,6 +750,7 @@ static void fi_pre_clo_init(void) {
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
     VG_(track_stop_client_code)(fi_reg_on_client_code_stop);
+    VG_(track_pre_reg_read)(fi_reg_on_reg_read);
     VG_(track_pre_mem_read)(fi_reg_on_mem_read);
     VG_(track_pre_mem_read_asciiz)(fi_reg_on_mem_read_str);
 }

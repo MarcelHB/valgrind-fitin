@@ -72,5 +72,11 @@
         "output": "sample10",
         "expected": "0.0",
         "vg_params": "--mod-bit=79 --mod-load-time=1"
+    },{
+        "title": "Flips on register syscall with offset (Linux only)",
+        "files": ["sample11.c"],
+        "output": "sample11",
+        "expected": "012",
+        "vg_params": "--mod-bit=2 --mod-load-time=1 --fnname=sendfile"
     }]
 }

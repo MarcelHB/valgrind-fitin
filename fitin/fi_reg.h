@@ -125,6 +125,10 @@ UWord fi_reg_flip_or_leave_no_state_list(toolData *tool_data,
    for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
 void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a, SizeT size);
 
+void fi_reg_flip_or_leave_registers(toolData *tool_data,
+                                    UChar *buffer,
+                                    PtrdiffT offset,
+                                    SizeT size);
 /* Recursive method that iterates into `expr` to find all sub-expressions and
    to instrument all accesses. `replace_only` will skip instrumentation. */
 void fi_reg_instrument_access(toolData *tool_data,

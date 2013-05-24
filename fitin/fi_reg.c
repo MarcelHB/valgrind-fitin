@@ -58,6 +58,11 @@ static UChar flip_byte_at_bit(UChar byte, UChar bit);
 
 static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
 
+static void flip_or_leave_on_buffer(toolData *tool_data, 
+                                    UChar *buffer,
+                                    Int offset,
+                                    SizeT size);
+
 static UChar* get_destination_address(Addr a, SizeT size, UChar bit);
 
 static void optional_memory_writing(toolData *tool_data,
@@ -501,6 +506,26 @@ static inline void optional_memory_writing(toolData *tool_data,
             }
 
             *dest_addr = *data_addr;
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------*/
+static inline void optional_memory_writing_no_source(toolData *tool_data,
+                                                     Addr location,
+                                                     SizeT full_size) {
+
+    if(tool_data->write_back_flip) {
+        UChar *addr = get_destination_address(location,
+                                              full_size,
+                                              tool_data->modBit);
+
+        if(addr != NULL) {
+            *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP (secondary)! Data at %p\n", (void*) addr);
+            }
         }
     }
 }
@@ -980,4 +1005,87 @@ static inline void add_modifier_for_register(toolData *tool_data,
 
     st = IRStmt_Dirty(di);
     addStmtToIRSB(sb, st);
+}
+
+/* --------------------------------------------------------------------------*/
+inline void fi_reg_flip_or_leave_registers(toolData *tool_data,
+                                           UChar *buffer,
+                                           PtrdiffT offset,
+                                           SizeT size) {
+    Int i = 0, from = 0, until = -1;
+    Bool open = False;
+    SizeT last_left = 0;
+
+    /* Look for all possible fragments of used registers. */
+    for(; i < size; ++i) {
+        if(tool_data->reg_origins[offset + i] != 0) {
+            if(!open) {
+                open = True;
+                from = i;
+            }
+
+            SizeT left = tool_data->reg_load_sizes[(offset + i)*2];
+            if(left == 0) {
+                until = i;
+            } else if(i > 0 && last_left <= left) {
+                until = i - 1;
+            }
+
+            last_left = left;
+        } else {
+            /* Fragment followed by 0. */
+            if(open) {
+                until = i;
+            }
+        }
+
+        if(until > 0) {
+            open = False;
+            until = 0;
+            flip_or_leave_on_buffer(tool_data,
+                                    buffer,
+                                    offset + from,
+                                    (until - from) + 1); 
+        }
+    }
+
+    /* Fragment finishing on last byte (or larger). */
+    if(open) {
+        flip_or_leave_on_buffer(tool_data,
+                                buffer,
+                                offset + from,
+                                (until - from) + 1); 
+    }
+}
+
+/* -------------------------------------------------------------------------------*/
+static inline void flip_or_leave_on_buffer(toolData *tool_data, 
+                                           UChar *buffer,
+                                           Int offset,
+                                           SizeT size) {
+    tool_data->loads++;
+    tool_data->monLoadCnt++;
+
+    if(!tool_data->goldenRun &&
+        tool_data->modMemLoadTime == tool_data->monLoadCnt) {
+        Int full_size_offset = offset * 2 + 1;
+        UChar *addr = get_destination_address((Addr) buffer,
+                                              size,
+                                              tool_data->modBit);
+
+        if(addr != NULL) {
+            *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
+
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP! Data from %p\n", (void*) tool_data->reg_origins[offset]);
+            }
+        }
+
+        /* Test for writing back into memory. */
+        optional_memory_writing_no_source(tool_data, 
+                                          tool_data->reg_origins[offset],
+                                          tool_data->reg_load_sizes[full_size_offset]);
+
+        tool_data->injections++;
+    }
 }
