@@ -1042,11 +1042,11 @@ inline void fi_reg_flip_or_leave_registers(toolData *tool_data,
 
         if(until > 0) {
             open = False;
-            until = 0;
             flip_or_leave_on_buffer(tool_data,
                                     buffer,
                                     offset + from,
                                     (until - from) + 1); 
+            until = 0;
         }
     }
 
