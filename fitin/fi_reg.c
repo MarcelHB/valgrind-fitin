@@ -838,14 +838,21 @@ static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_tem
 static inline void replace_temps(XArray *replacements, IRExpr **expr) {
     ReplaceData key = (ReplaceData) { (*expr)->Iex.RdTmp.tmp, 0 };
     Word first, last;
+    Bool found = False;
 
-    if(VG_(lookupXA)(replacements, &key, &first, &last)) {
+    while(VG_(lookupXA)(replacements, &key, &first, &last)) {
+        found = True;
+        ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
+        key.old_temp = replace_data->new_temp;
+    }
+
+    if(found) {
         /* Unless copied, all uses of an IRTemp share the same IRExpr,
            so otherwise this would change previous uses as well. */
         *expr = deepCopyIRExpr(*expr);
         ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
         (*expr)->Iex.RdTmp.tmp = replace_data->new_temp;
-    } 
+    }
 }
 
 /* To be used if the new temp `temp` is already determined to replace the one 
