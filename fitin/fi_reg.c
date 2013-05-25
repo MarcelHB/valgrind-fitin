@@ -73,6 +73,8 @@ static void optional_memory_writing(toolData *tool_data,
 
 static void replace_temps(XArray *replacements, IRExpr **expr);
 
+static void replace_temp(IRTemp temp, IRExpr **expr);
+
 static void update_reg_load_sizes(toolData *tool_data,
                                   Int offset,
                                   SizeT left,
@@ -555,7 +557,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
         IRStmt *st;
-        LoadData *load_data;
+        LoadData *load_data, new_load_data;
         IRTemp new_temp, access_temp = tmp;
         IRExpr **args;
         IRDirty *dirty;
@@ -588,6 +590,13 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
         }
         dirty->tmp = new_temp;
 
+        /* We have to treat the newly introduced value equally to the original one. */
+        new_load_data = *load_data;
+        new_load_data.dest_temp = new_temp;
+
+        VG_(addToXA)(loads, &new_load_data);
+        VG_(sortXA)(loads);
+
         st = IRStmt_Dirty(dirty);
         addStmtToIRSB(sb, st);
 
@@ -619,17 +628,21 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
         case Iex_RdTmp:
             /* Stop recursion if arrived on a RdTmp. And replace
                it if there are replacement entries for this one. */
-            if(!replace_only) {
-                add_replacement(replacements,
-                                (*expr)->Iex.RdTmp.tmp,
-                                instrument_access_tmp(
-                                    tool_data,
-                                    loads,
-                                    (*expr)->Iex.RdTmp.tmp,
-                                    typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
-                                    sb));
-            }
             replace_temps(replacements, expr);
+            if(!replace_only) {
+                IRTemp new_temp = instrument_access_tmp(tool_data,
+                                                        loads,
+                                                        (*expr)->Iex.RdTmp.tmp,
+                                                        typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
+                                                        sb);
+                if(new_temp != IRTemp_INVALID) {
+                    add_replacement(replacements,
+                                    (*expr)->Iex.RdTmp.tmp,
+                                    new_temp);
+
+                    replace_temp(new_temp, expr);
+                }
+            }
             break;
         case Iex_Qop:
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg1);
@@ -788,16 +801,22 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
                                     IRSB *sb) {
     /* RdTmp is of course the only relevant expression. */
     if((*expr)->tag == Iex_RdTmp) {
-        add_replacement(replacements,
-                        (*expr)->Iex.RdTmp.tmp,
-                        instrument_access_tmp_on_store(
-                            tool_data,
+        replace_temps(replacements, expr);
+
+        IRTemp new_temp = instrument_access_tmp_on_store(tool_data,
                             loads,
                             (*expr)->Iex.RdTmp.tmp,
                             address,
                             typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
-                            sb));
-        replace_temps(replacements, expr);
+                            sb);
+
+        if(new_temp != IRTemp_INVALID) {
+            add_replacement(replacements,
+                            (*expr)->Iex.RdTmp.tmp,
+                            new_temp);
+
+            replace_temp(new_temp, expr);
+        }
 
         return True;
     }
@@ -809,11 +828,9 @@ inline Bool fi_reg_instrument_store(toolData *tool_data,
    `new_temp`. */
 /* --------------------------------------------------------------------------*/
 static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_temp) {
-    if(new_temp != IRTemp_INVALID) {
-        ReplaceData data = (ReplaceData) { old_temp, new_temp };
-        VG_(addToXA)(list, &data);
-        VG_(sortXA)(list);
-    }
+    ReplaceData data = (ReplaceData) { old_temp, new_temp };
+    VG_(addToXA)(list, &data);
+    VG_(sortXA)(list);
 }
 
 /* Checks a given expression for temps that need to be replaced. */
@@ -829,6 +846,14 @@ static inline void replace_temps(XArray *replacements, IRExpr **expr) {
         ReplaceData *replace_data = (ReplaceData*) VG_(indexXA)(replacements, first);
         (*expr)->Iex.RdTmp.tmp = replace_data->new_temp;
     } 
+}
+
+/* To be used if the new temp `temp` is already determined to replace the one 
+   of `expr`. */
+/* --------------------------------------------------------------------------*/
+static inline void replace_temp(IRTemp temp, IRExpr **expr) {
+    *expr = deepCopyIRExpr(*expr);
+    (*expr)->Iex.RdTmp.tmp = temp;
 }
 
 /* See fi_reg.h */

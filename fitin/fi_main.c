@@ -594,7 +594,7 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-    VG_(printf)("[FITIn] Totals:\n");
+    VG_(printf)("[FITIn] Totals (of monitored code blocks):\n");
     VG_(printf)("[FITIn] Overall variable accesses: %lu\n", (unsigned long) tData.loads);
     VG_(printf)("[FITIn] Monitored variable accesses: %lu\n", (unsigned long) tData.monLoadCnt);
     VG_(printf)("[FITIn] Instructions executed: %lu\n", (unsigned long) tData.instCnt);
