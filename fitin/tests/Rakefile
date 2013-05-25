@@ -61,7 +61,7 @@ task :benchmark_dhry => [:build_dhry_benchmark] do
     time1 = Benchmark.realtime do
       BENCHMARK_RUNS.times do
         print "* "
-        silent { sh "#{bin_output("dhry")} &> /dev/null" }
+        silent { sh "#{bin_output("dhry")} > /dev/null" }
       end
     end
     puts "\n[RESULT] avg: #{time1/BENCHMARK_RUNS}s"
