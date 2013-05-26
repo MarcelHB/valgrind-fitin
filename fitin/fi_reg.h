@@ -69,10 +69,12 @@ void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
 /* On GET, this method will test whether `expr` maps to a relevent occupancy,
    and in this case, it adds a copy of that original temp to the loads for
-   `new_temp`. The return value states whther this expr was a GET. */
+   `new_temp` with type `ty`. The return value states whther this expr was a
+   GET. */
 Bool fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRTemp new_temp,
+                            IRType ty,
                             IRExpr *expr);
 
 /* This method is only needed on 64bit guests on a WrTmp. It checks `expr` for

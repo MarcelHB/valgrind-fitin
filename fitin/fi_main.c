@@ -484,6 +484,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                         fi_reg_add_load_on_get(&tData, 
                                                loads,
                                                st->Ist.WrTmp.tmp,
+                                               typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
                                                st->Ist.WrTmp.data);
                     }
                     break;

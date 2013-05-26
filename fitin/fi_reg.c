@@ -269,6 +269,7 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 inline Bool fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
                                    IRTemp new_temp,
+                                   IRType ty,
                                    IRExpr *expr) {
     if(expr->tag == Iex_Get) {
         Word first, last;
@@ -287,11 +288,13 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
             /* Load the load data of the original temp, and insert a copy
                that only contains the new IRTemp, created by WrTmp. */
             LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-            LoadData new_load_data = *load_data;
 
-            new_load_data.dest_temp = new_temp;
+            if(ty <= load_data->ty) {
+                LoadData new_load_data = *load_data;
+                new_load_data.dest_temp = new_temp;
 
-            fi_reg_add_temp_load(loads, &new_load_data);
+                fi_reg_add_temp_load(loads, &new_load_data);
+            }
         }
 
         return True;
