@@ -78,5 +78,11 @@
         "output": "sample11",
         "expected": "012",
         "vg_params": "--mod-bit=2 --mod-load-time=1 --fnname=sendfile"
+    },{
+        "title": "ASM written test to demonstrate work of replacing algo. (x86-test only)",
+        "files": ["sample12.c"],
+        "output": "sample12",
+        "expected": "3 9",
+        "vg_params": "--mod-bit=1 --mod-load-time=1"
     }]
 }
