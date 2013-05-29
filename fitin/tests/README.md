@@ -23,6 +23,9 @@ automatically (http://www.ruby-lang.org/en/).
 Once installed, please execute ```gem install rake```. Now, the
 ```rake``` command should be available in your shell.
 
+For older Ruby (v1.8) versions, you need to install JSON as well:
+```gem install json```
+
 Execute ```rake TASK``` with TASK being one of the following commands:
 
 * ```tests```: Builds and executes the tests.
