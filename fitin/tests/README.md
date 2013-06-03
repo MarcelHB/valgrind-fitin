@@ -30,19 +30,28 @@ Execute ```rake TASK``` with TASK being one of the following commands:
 
 * ```tests```: Builds and executes the tests.
 * ```clean```: Removes binary test files.
-* ```benchmark_dhry```: Builds and executes a tiny benchmark containing
-  three samples.
+* ```benchmark_dhry```: Execution time measurements of Dhrystone.
+* ```benchmark_dhry_flops```: Dhrystone's own benchmark rating.
+* ```benchmark_linpack```: Execution time measurements of Linpack.
+* ```benchmark_linpack_flops```: Dhrystone's own benchmark rating (MFLOPS).
 
 With ```tests``` being the default task.
 
 Test runs and options are specified by ```tests.json```, other
 parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
 
-## benchmark\_dhry
+I noticed a crash if trying to run ```dhry_fitin``` under ```-m64``` and
+```--include=$PWD/dhry_fitin```. This is caused by instructions
+resulting from Valgrind recompilation at some point (```Proc_8```?) and
+so far the reason is unknown but does not occur if omitting
+instrumentation of ```fi_reg_flip_or_leave_before_store```. Nonetheless,
+attempting to isolate this problem makes it disappear. This needs some
+research. For now, ```-m32``` is always enforced here.
 
-This builds and executes a Dhrystone implementation preserved from the
-original FITIn used for demonstrational purposes. There will be three
-steps with multiple runs:
+## benchmark\_dhry, benchmark\_linpack
+
+This builds and executes a Dhrystone/Linpack implementation not customized
+by FITIn. There will be three steps with multiple runs:
 
 * dhry: No valgrind.
 * ```--tool=none```: Runs dhry with Valgrind's 'none' tool.

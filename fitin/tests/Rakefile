@@ -53,40 +53,27 @@ task :clean do
 end
 
 #------------------------------------------------------------------------------
-task :benchmark_dhry => [:build_dhry_benchmark] do
-  log_file = Tempfile.new("dhry")
+task :benchmark_dhry do
+  build_benchmark("dhry", ["dhry/dhry_1.c", "dhry/dhry_2.c"], "dhry")
+  benchmark_for("dhry", BENCHMARK_DHRY_VG)
+end
 
-  begin
-    puts "[RUN] Dhry without Valgrind"
-    time1 = Benchmark.realtime do
-      BENCHMARK_RUNS.times do
-        print "* "
-        silent { sh "#{bin_output("dhry")} > /dev/null" }
-      end
-    end
-    puts "\n[RESULT] avg: #{time1/BENCHMARK_RUNS}s"
+#------------------------------------------------------------------------------
+task :benchmark_dhry_flops do
+  build_benchmark("dhry", ["dhry/dhry_1.c", "dhry/dhry_2.c"], "dhry")
+  flops_benchmark_for("dhry", BENCHMARK_DHRY_VG)
+end
 
-    puts "[RUN] Dhry with Valgrind and --tool=none"
-    time2 = Benchmark.realtime do
-      BENCHMARK_RUNS.times do
-        print "* "
-        silent { sh "#{VALGRIND} --log-file=#{log_file.path} --tool=none #{bin_output("dhry")} 2>&1 > /dev/null" }
-      end
-    end
-    puts "\n[RESULT] avg: #{time2/BENCHMARK_RUNS}s"
+#------------------------------------------------------------------------------
+task :benchmark_linpack do
+  build_benchmark("linpack", ["linpack/linpack.c"], "linpack")
+  benchmark_for("linpack", BENCHMARK_DHRY_VG)
+end
 
-    puts "[RUN] Dhry with Valgrind and --tool=fitin"
-    time3 = Benchmark.realtime do
-      BENCHMARK_RUNS.times do
-        print "* "
-        silent { sh "#{VALGRIND} --log-file=#{log_file.path} --tool=fitin #{BENCHMARK_DHRY_VG} #{bin_output("dhry")} 2>&1 > /dev/null" }
-      end
-    end
-    puts "\n[RESULT] avg: #{time3/BENCHMARK_RUNS}s"
-  ensure
-    log_file.close
-    File.unlink(log_file.path)
-  end
+#------------------------------------------------------------------------------
+task :benchmark_linpack_flops do
+  build_benchmark("linpack", ["linpack/linpack.c"], "linpack")
+  flops_benchmark_for("linpack", BENCHMARK_DHRY_VG)
 end
 
 #------------------------------------------------------------------------------
@@ -113,9 +100,127 @@ task :build_tests do
 end
 
 #------------------------------------------------------------------------------
-task :build_dhry_benchmark do
-  test_data_records.select { |test| test["output"] == "dhry" }.each do |test|
-    build_test(test, last_build_time)
+def benchmark_for(binary, fitin_vg_opts="")
+  log_file = Tempfile.new(binary)
+
+  begin
+    puts "[RUN] #{binary} without Valgrind"
+    time1 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        run_alone(binary)
+        File.unlink(benchmark_result_file(binary))
+      end
+    end
+    puts "\n[RESULT] avg: #{time1/BENCHMARK_RUNS}s"
+
+    puts "[RUN] #{binary} with Valgrind and --tool=none"
+    time2 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        run_none(binary, log_file)
+        File.unlink(benchmark_result_file(binary))
+      end
+    end
+    puts "\n[RESULT] avg: #{time2/BENCHMARK_RUNS}s"
+
+    puts "[RUN] #{binary} with Valgrind and --tool=fitin"
+    time3 = Benchmark.realtime do
+      BENCHMARK_RUNS.times do
+        print "* "
+        run_fitin(binary, log_file, fitin_vg_opts)
+        File.unlink(benchmark_result_file(binary))
+      end
+    end
+    puts "\n[RESULT] avg: #{time3/BENCHMARK_RUNS}s"
+  ensure
+    log_file.close
+    File.unlink(log_file.path)
+  end
+end
+
+#------------------------------------------------------------------------------
+def flops_benchmark_for(binary, fitin_vg_opts="")
+  log_file = Tempfile.new(binary)
+
+  begin
+    sum = 0
+    puts "[RUN] #{binary} without Valgrind"
+    BENCHMARK_RUNS.times do
+      print "* "
+      run_alone(binary)
+      sum += read_result_file(binary)
+    end
+    puts "\n[RESULT] avg: #{sum/BENCHMARK_RUNS}"
+
+    sum = 0
+    puts "[RUN] #{binary} with Valgrind and --tool=none"
+    BENCHMARK_RUNS.times do
+      print "* "
+      run_none(binary, log_file)
+      sum += read_result_file(binary)
+    end
+    puts "\n[RESULT] avg: #{sum/BENCHMARK_RUNS}"
+
+    sum = 0
+    puts "[RUN] #{binary} with Valgrind and --tool=fitin"
+    BENCHMARK_RUNS.times do
+      print "* "
+      run_fitin(binary, log_file, fitin_vg_opts)
+      sum += read_result_file(binary)
+    end
+    puts "\n[RESULT] avg: #{sum/BENCHMARK_RUNS}"
+  ensure
+    log_file.close
+    File.unlink(log_file.path)
+  end
+end
+
+#------------------------------------------------------------------------------
+def run_alone(binary)
+  silent { %x(#{bin_output(binary)} N > /dev/null 2> /dev/null) }
+end
+
+#------------------------------------------------------------------------------
+def run_none(binary, log_file)
+  silent { %x(#{VALGRIND} --log-file=#{log_file.path} --tool=none #{bin_output(binary)} N > /dev/null 2> /dev/null) }
+end
+
+#------------------------------------------------------------------------------
+def run_fitin(binary, log_file, opts="")
+  silent { %x(#{VALGRIND} --log-file=#{log_file.path} --tool=fitin #{opts} --include=$PWD/#{binary} #{bin_output(binary)} N > /dev/null 2> /dev/null) }
+end
+
+#------------------------------------------------------------------------------
+def read_result_file(binary)
+  file = benchmark_result_file(binary)
+  case binary
+  when "linpack"
+    read_linpack_result_file(file)
+  when "dhry"
+    read_dhry_result_file(file)
+  end
+end
+
+#------------------------------------------------------------------------------
+def read_linpack_result_file(file)
+  contents = File.read(file)
+  File.unlink(file)
+  if contents =~ /^\s*Speed\s+(\d+\.\d+)\s+MFLOPS/
+    $1.to_f
+  else
+    0
+  end
+end
+
+#------------------------------------------------------------------------------
+def read_dhry_result_file(file)
+  contents = File.read(file)
+  File.unlink(file)
+  if contents =~ /^\s*VAX\sMIPS\srating:\s+(\d+\.\d+)/
+    $1.to_f
+  else
+    0
   end
 end
 
@@ -151,7 +256,7 @@ def build_test(test, time)
       FileUtils.mkdir_p(local("bin"))
 
       objects = test["files"].map { |src| object_file(src) }
-      sh "#{CC} #{LDFLAGS} -o #{bin_output(test["output"])} #{objects.join(" ")}"
+      sh "#{CC} #{LDFLAGS} #{test["ldflags"]} -o #{bin_output(test["output"])} #{objects.join(" ")}"
     end
   rescue
     puts "[ERROR] Building of test #{test["output"]} failed"
@@ -159,10 +264,48 @@ def build_test(test, time)
 end
 
 #------------------------------------------------------------------------------
+def build_benchmark(dir, files, target)
+  build_cpuid(dir)
+  begin
+    files.each do |src|
+      sh "#{CC} #{CFLAGS} -g3 -m32 -c #{src} -o #{object_file(src)}"
+    end
+    objects = files.map { |src| object_file(src) }
+    objects += ["cpuid.o", cpuida(dir)]
+    sh "#{CC} #{LDFLAGS} -m32 -lm -lrt -lc -o #{bin_output(target)} #{objects.join(" ")}"
+  rescue
+    puts "[ERROR] Building of benchmark #{target} failed"
+  end
+end
+
+#------------------------------------------------------------------------------
+def build_cpuid(dir)
+  bits = platform_width
+  file = File.join(dir, "common_#{bits}bit", "cpuidc#{bits == "64" ? "64" : ""}.c")
+  sh "#{CC} #{CFLAGS} -m32 -c #{file} -o cpuid.o"
+end
+
+#------------------------------------------------------------------------------
+def cpuida(dir)
+  bits = platform_width
+  File.join(dir, "common_#{bits}bit", "cpuida#{bits == "64" ? "64" : ""}.o")
+end
+
+#------------------------------------------------------------------------------
 def last_build_time
   if File.exists?(local(TEST_BUILT_FILE))
     File.atime(local(TEST_BUILT_FILE))
   end
+end
+
+#------------------------------------------------------------------------------
+def platform_width
+  # 64 bit causes crashes on full --include= :(
+  #if CFLAGS =~ /-m(\d{2})/
+  #  return $1
+  #end
+
+  "32"
 end
 
 #------------------------------------------------------------------------------
@@ -229,4 +372,9 @@ def unlink(file)
   if File.exists?(file)
     File.unlink(file)
   end
+end
+
+#------------------------------------------------------------------------------
+def benchmark_result_file(binary)
+  "#{binary.capitalize}.txt"
 end

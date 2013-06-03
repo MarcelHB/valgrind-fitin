@@ -362,6 +362,7 @@ static UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
 static inline UWord flip_or_leave(toolData *tool_data,
                                   UWord data,
                                   LoadState *state) {
+
     if(state->relevant) {
         tool_data->monLoadCnt++;
 
@@ -762,8 +763,7 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
             if(access_temp == IRTemp_INVALID) {
                 return IRTemp_INVALID;
             }
-        }  
-                
+        } 
                 
         new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
         load_data = (LoadData*) VG_(indexXA)(loads, first);

@@ -30,11 +30,13 @@
         "expected": "2 3",
         "vg_params": "--mod-bit=0 --mod-load-time=2"
     },{
-        "title": "MyDhrystone2, not crashing.",
-        "files": ["dhry_1.c", "dhry_2.c"],
-        "output": "dhry",
+        "title": "MyDhrystone2, not crashing (32bit only).",
+        "files": ["dhry_fitin/dhry_1.c", "dhry_fitin/dhry_2.c"],
+        "output": "dhry_fitin",
+        "cflags": "-g3 -m32",
+        "ldflags": "-m32",
         "expected": null,
-        "vg_params": "--mod-bit=4 --mod-load-time=5"
+        "vg_params": "--mod-bit=4 --mod-load-time=5 --include=$PWD/dhry_fitin"
     },{
         "title": "Deals with repeating variables on stack.",
         "files": ["sample6.c"],

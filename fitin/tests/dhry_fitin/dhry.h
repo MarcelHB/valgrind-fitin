@@ -233,7 +233,7 @@
 #define INCLUDE_DHRY_H
 
 /* Type definitions */
-#include "../../include/valgrind/fi_client.h"
+#include "../../../include/valgrind/fi_client.h"
 
 #ifdef FLIPSAFE
 #include <cstdlib>
