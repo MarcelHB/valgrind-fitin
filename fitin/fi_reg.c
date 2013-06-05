@@ -698,21 +698,13 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
            reason to do this on 64bit machines. As visible for sample6.c, Valgrind
            seems to generate code like that:
 
-           tN-1 = LOAD(...):32
+           tN-1 = LOAD(tA):32
            tN = 64to32(32to64(tN-1)))
-           tN+1 = Add:32(tN, X:32)
+           Store(tA) = tN
 
-           while the actual code is something like:
-           
-           int a = 1;
-           a++;
-
-           On a plain-old int! If `a` is monitored on tN-1, 32to64 makes us loose 
-           the way to Add. If we expect to have only 1 access in the C snippet,
-           we actually have 2 more before the Add (which are not even necessary).
-
-           This skews the counter and causes a flip earlier than anticipacted from
-           the code, which is not desired at all in this case.
+           This makes us loose tN-1 by unnecessary casts. Instead of using a correct
+           *_before_store-helper, we just get the regular one. But as we write back
+           to tA, the counter will be increased.
            */
         if(op == Iop_64to32 || op == Iop_32Sto64 || op == Iop_32Uto64) {
             Word first, last;
