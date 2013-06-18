@@ -694,17 +694,11 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
         IROp op = expr->Iex.Unop.op;
 
         /* IMPORTANT: 
-           This may have a severe impact onto programs! But there is a significant
-           reason to do this on 64bit machines. As visible for sample6.c, Valgrind
-           seems to generate code like that:
+           This workaround overcomes a problem under 64bit if you try
+           read a value and just PUT it. This is not supposed to count
+           as read but these conversions make it count as such a one.
 
-           tN-1 = LOAD(tA):32
-           tN = 64to32(32to64(tN-1)))
-           Store(tA) = tN
-
-           This makes us loose tN-1 by unnecessary casts. Instead of using a correct
-           *_before_store-helper, we just get the regular one. But as we write back
-           to tA, the counter will be increased.
+           So we must treat them as loads.
            */
         if(op == Iop_64to32 || op == Iop_32Sto64 || op == Iop_32Uto64) {
             Word first, last;
