@@ -35,7 +35,8 @@ Execute ```rake TASK``` with TASK being one of the following commands:
 * ```benchmark_linpack```: Execution time measurements of Linpack.
 * ```benchmark_linpack_flops```: Dhrystone's own benchmark rating (MFLOPS).
 
-With ```tests``` being the default task.
+With ```tests``` being the default task. Benchmarks can be compiled on
+Linux only!
 
 Test runs and options are specified by ```tests.json```, other
 parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
