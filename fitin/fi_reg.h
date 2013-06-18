@@ -83,8 +83,10 @@ Bool fi_reg_add_load_on_get(toolData *tool_data,
    important details concerning this! */
 Bool fi_reg_add_load_on_resize(toolData *tool_data,
                                XArray *loads,
-                               IRExpr *expr,
-                               IRTemp new_temp);
+                               XArray *resize,
+                               IRExpr **expr,
+                               IRTemp new_temp,
+                               IRSB *sb);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
    to insert helpers if appllicable. */

@@ -91,6 +91,8 @@ static IRTemp instrument_access_tmp(toolData *tool_data,
                                     IRType ty,
                                     IRSB *sb);
 
+static IRTemp insert_64bit_resizer(LoadData *data, IROp op, IRSB *sb);
+
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
@@ -292,6 +294,8 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
             if(ty <= load_data->ty) {
                 LoadData new_load_data = *load_data;
                 new_load_data.dest_temp = new_temp;
+                /* Adjust for retrieval size.*/
+                new_load_data.ty = ty;
 
                 fi_reg_add_temp_load(loads, &new_load_data);
             }
@@ -322,7 +326,6 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
 
     if(tool_data->injections == 0 && state_list_index != LOAD_STATE_INVALID_INDEX) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-
         return flip_or_leave(tool_data, data, state);
     }
 
@@ -365,7 +368,6 @@ static inline UWord flip_or_leave(toolData *tool_data,
 
     if(state->relevant) {
         tool_data->monLoadCnt++;
-
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
             UChar *addr = get_destination_address((Addr) &data, state->size, tool_data->modBit);
@@ -688,10 +690,12 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
 /* --------------------------------------------------------------------------*/
 inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
                                       XArray *loads,
-                                      IRExpr *expr,
-                                      IRTemp new_temp) {
-    if(expr->tag == Iex_Unop && expr->Iex.Unop.arg->tag == Iex_RdTmp) {
-        IROp op = expr->Iex.Unop.op;
+                                      XArray *replacements,
+                                      IRExpr **expr,
+                                      IRTemp new_temp,
+                                      IRSB *sb) {
+    if((*expr)->tag == Iex_Unop && (*expr)->Iex.Unop.arg->tag == Iex_RdTmp) {
+        IROp op = (*expr)->Iex.Unop.op;
 
         /* IMPORTANT: 
            This workaround overcomes a problem under 64bit if you try
@@ -700,19 +704,34 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
 
            So we must treat them as loads.
            */
+
+        /* Only take care of those three operations (enough?) */
         if(op == Iop_64to32 || op == Iop_32Sto64 || op == Iop_32Uto64) {
             Word first, last;
             LoadData load_key;
 
-            load_key.dest_temp = expr->Iex.Unop.arg->Iex.RdTmp.tmp;
+            /* Replace the argument by what it is supposed to be by now. */
+            replace_temps(replacements, &((*expr)->Iex.Unop.arg));
+            load_key.dest_temp = (*expr)->Iex.Unop.arg->Iex.RdTmp.tmp;
 
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
                 LoadData new_load_data = *load_data;
 
+                /* If replacing yielded a misaligned type, we have to convert it
+                   right before. */
+                IRTemp aligned_temp = insert_64bit_resizer(load_data, op, sb);
+                if(aligned_temp != load_data->dest_temp) {
+                    add_replacement(replacements, load_data->dest_temp, aligned_temp);
+                    replace_temp(aligned_temp, &((*expr)->Iex.Unop.arg));
+                }
+
+                /* Here, we also have to change the type. */
                 new_load_data.dest_temp = new_temp;
+                new_load_data.ty = op == Iop_64to32 ? Ity_I32 : Ity_I64;
 
                 fi_reg_add_temp_load(loads, &new_load_data);
+                add_replacement(replacements, aligned_temp, new_temp);
             }
 
             return True;
@@ -720,6 +739,48 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
     }
 
     return False;
+}
+
+/* This method adds a resizer for 32->64 or 64-32 if converting operation `op`
+   is incompatible to the temp of `data`.
+
+   This will produce many neutralizing statements, but it works while preserving
+   usability of the replacing-algorithm. Should be optimized. */
+/* --------------------------------------------------------------------------*/
+static inline IRTemp insert_64bit_resizer(LoadData *data, IROp op, IRSB *sb) {
+   IROp new_op = Iop_INVALID;
+   IRType new_type = Ity_I64;
+
+   /* 32 -> 64 */
+   if(data->ty == Ity_I32) {
+      if(op == Iop_64to32) {
+          new_op = Iop_32Uto64;
+      }
+   /* 64 -> 32 */
+   } else if(data->ty == Ity_I64) {
+      if(op == Iop_32Sto64 || op == Iop_32Uto64) {
+          new_op = Iop_64to32;
+          new_type = Ity_I32;
+      }
+   }
+   
+   if(new_op != Iop_INVALID) {
+       IRTemp new_temp = newIRTemp(sb->tyenv, new_type);
+       IRStmt *st = IRStmt_WrTmp(
+                                 new_temp,
+                                 IRExpr_Unop(
+                                     new_op,
+                                     IRExpr_RdTmp(
+                                         data->dest_temp
+                                     )
+                                 )
+                              );
+       addStmtToIRSB(sb, st);
+
+       return new_temp;
+   }
+
+   return data->dest_temp;
 }
 
 /* Basically the same as instrument_access_tmp. But to be used on RdTmp on

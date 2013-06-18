@@ -464,8 +464,10 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     if(tData.gWordTy == Ity_I64 && 
                             fi_reg_add_load_on_resize(&tData,
                                                       loads,
-                                                      st->Ist.WrTmp.data,
-                                                      st->Ist.WrTmp.tmp)) {
+                                                      replacements,
+                                                      &(st->Ist.WrTmp.data),
+                                                      st->Ist.WrTmp.tmp,
+                                                      sbOut)) {
                         break;
                     }
 
