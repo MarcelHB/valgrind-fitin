@@ -43,8 +43,8 @@ parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
 
 I noticed a crash if trying to run ```dhry_fitin``` under ```-m64``` and
 ```--include=$PWD/dhry_fitin```. This is caused by instructions
-resulting from Valgrind recompilation at some point (```Proc_8```?) and
-so far the reason is unknown but does not occur if omitting
+resulting from Valgrind recompilation at some point (```Proc_8```) and
+so far the reason is unknown but it does not occur if omitting
 instrumentation of ```fi_reg_flip_or_leave_before_store```. Nonetheless,
 attempting to isolate this problem makes it disappear. This needs some
 research. For now, ```-m32``` is always enforced here.
@@ -54,16 +54,12 @@ research. For now, ```-m32``` is always enforced here.
 This builds and executes a Dhrystone/Linpack implementation not customized
 by FITIn. There will be three steps with multiple runs:
 
-* dhry: No valgrind.
-* ```--tool=none```: Runs dhry with Valgrind's 'none' tool.
-* ```--tool=fitin```: Runs dhry with this FITIn binary.
+* No valgrind.
+* ```--tool=none```: Runs benchmark with Valgrind's 'none' tool.
+* ```--tool=fitin```: Runs benchmark with this FITIn binary.
 
 At the end of each step, the script will print the average execution
-time as seen from a launching shell.
-
-Although the benchmark is not very precise as it includes a little noise
-from Ruby and does not subtract Valgrind's launch time, it gives a
-little impression about the overall slowdown of FITIn.
+time as seen from a launching shell or the average benchmark score.
 
 ## Copyright
 

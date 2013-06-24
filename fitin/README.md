@@ -60,7 +60,7 @@ For setting up monitoring of access to memory, use one of the following
 macros:
 
 * ```FITIN_MONITOR_VARIABLE(var)```
-* ```FITIN_MONITOR_MEMORY(ptr, size)```
+* ```FITIN_MONITOR_MEMORY(addr, size)```
 
 Then compile the source code. Deactivating any optimization levels is
 strongly recommended, as optimazations by the compiler may render this
@@ -83,8 +83,8 @@ additional information about FITIn.
 
 ### Examples, Tests
 
-Have a look at the ```tests``` folder. Please not that the tests are not
-build by the ordinary ```make``` command and require Ruby if used by the
+Have a look at the ```tests``` folder. Please note that the tests are not
+built by the ordinary ```make``` command and require Ruby if used by the
 test suite. 
 
 For more information, please consult the ```README``` inside.
@@ -100,7 +100,7 @@ For more information, please consult the ```README``` inside.
   ```FITIN_MONITOR_MEMORY``` instead of ```FITIN_MONITOR_VARIABLE```
   for every byte that may be a start address.
 * Limited support for rotating register files: not respected for IRDirty
-  helpers (some special instructions, not on x86).
+  helpers.
 
 ## Reporting of Bugs, Feature Requests, Support
 
