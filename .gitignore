@@ -30,3 +30,4 @@ cachegrind/cg_merge
 coregrind/valgrind
 coregrind/vgdb
 fitin/tests/built
+!cpuida.o

@@ -812,7 +812,7 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
             }
         } 
                 
-        new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
+        new_temp = newIRTemp(sb->tyenv, ty);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
         args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
                              IRExpr_RdTmp(access_temp), 
