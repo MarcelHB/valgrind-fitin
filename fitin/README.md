@@ -46,7 +46,7 @@ Things that do not count as access (with ```a``` being monitored):
 * Anonymous expressions: ```(a + b) * c```, again there is only one
   access before the addition.
 * Irregular access: ```((char*)&a) + b)```, as this is not touching the
-  start address at execution time (but a is wide enough, e.g. by
+  start address at execution time (but ```a``` is wide enough, e.g. by
   ```int a;```).
 
 ## Use
@@ -60,7 +60,7 @@ For setting up monitoring of access to memory, use one of the following
 macros:
 
 * ```FITIN_MONITOR_VARIABLE(var)```
-* ```FITIN_MONITOR_ADDRESS(ptr, size)```
+* ```FITIN_MONITOR_MEMORY(addr, size)```
 
 Then compile the source code. Deactivating any optimization levels is
 strongly recommended, as optimazations by the compiler may render this
@@ -83,8 +83,8 @@ additional information about FITIn.
 
 ### Examples, Tests
 
-Have a look at the ```tests``` folder. Please not that the tests are not
-build by the ordinary ```make``` command and require Ruby if used by the
+Have a look at the ```tests``` folder. Please note that the tests are not
+built by the ordinary ```make``` command and require Ruby if used by the
 test suite. 
 
 For more information, please consult the ```README``` inside.
@@ -97,10 +97,10 @@ For more information, please consult the ```README``` inside.
   or all of the user code (```--include=``` to the source code).
 * If accessing data from memory, the tool focuses on matching start
   addresses being monitored. For uses of different alignments, use
-  ```FITIN_MONITOR_ADDRESS``` instead of ```FITIN_MONITOR_VARIABLE```
+  ```FITIN_MONITOR_MEMORY``` instead of ```FITIN_MONITOR_VARIABLE```
   for every byte that may be a start address.
 * Limited support for rotating register files: not respected for IRDirty
-  helpers (some special instructions, not on x86).
+  helpers.
 
 ## Reporting of Bugs, Feature Requests, Support
 
