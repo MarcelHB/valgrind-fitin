@@ -90,7 +90,7 @@ static IRTemp instrument_access_tmp(toolData *tool_data,
                                     IRTemp tmp,
                                     IRSB *sb);
 
-static IRTemp insert_64bit_resizer(LoadData *data, IROp op, IRSB *sb);
+static IRTemp insert_64bit_resizer(IRTemp src_tmp, IRSB *sb);
 
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
@@ -630,9 +630,10 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
         case Iex_GetI:
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.GetI.ix);
             break;
-        case Iex_RdTmp:
+        case Iex_RdTmp: {
             /* Stop recursion if arrived on a RdTmp. And replace
                it if there are replacement entries for this one. */
+            IRTemp original_temp = (*expr)->Iex.RdTmp.tmp;
             replace_temps(replacements, expr);
             if(!replace_only) {
                 IRTemp new_temp = instrument_access_tmp(tool_data,
@@ -640,6 +641,25 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                                         (*expr)->Iex.RdTmp.tmp,
                                                         sb);
                 if(new_temp != IRTemp_INVALID) {
+                    IRType original_ty = typeOfIRTemp(sb->tyenv, original_temp);
+                    IRType new_ty = typeOfIRTemp(sb->tyenv, new_temp);
+
+                    /* This is necessary to work on 64bit systems as temporaries
+                     * may branch:
+                     *
+                     *   tX+1 = 32->64(tX)
+                     *     USE(tX+1)
+                     *   USE(tX)
+                     *
+                     * FITIn's algorithm will in any case set up: tX -> tX+1.
+                     * If we replace tX by tX+1, we have a bad size in the following
+                     * code. Here, we insert a resizer to have tX+2 with the original
+                     * size to be used instead of tX+1.
+                     */
+                    if(original_ty != new_ty) {
+                        new_temp = insert_64bit_resizer(new_temp, sb);
+                    }
+
                     add_replacement(replacements,
                                     (*expr)->Iex.RdTmp.tmp,
                                     new_temp);
@@ -648,6 +668,7 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                 }
             }
             break;
+        }
         case Iex_Qop:
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg1);
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Qop.details->arg2);
@@ -715,14 +736,17 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
             if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
                 LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
                 LoadData new_load_data = *load_data;
+                IRTemp aligned_temp = load_data->dest_temp;
 
                 /* If replacing yielded a misaligned type, we have to convert it
                    right before. */
-                IRTemp aligned_temp = insert_64bit_resizer(load_data, op, sb);
-                if(aligned_temp != load_data->dest_temp) {
+                if((load_data->ty == Ity_I32 && op == Iop_64to32) ||
+                   (load_data->ty == Ity_I64 && (op == Iop_32Sto64 || op == Iop_32Uto64))) {
+
+                    aligned_temp = insert_64bit_resizer(load_data->dest_temp, sb);
                     add_replacement(replacements, load_data->dest_temp, aligned_temp);
                     replace_temp(aligned_temp, &((*expr)->Iex.Unop.arg));
-                }
+               }
 
                 /* Here, we also have to change the type. */
                 new_load_data.dest_temp = new_temp;
@@ -745,40 +769,30 @@ inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
    This will produce many neutralizing statements, but it works while preserving
    usability of the replacing-algorithm. Should be optimized. */
 /* --------------------------------------------------------------------------*/
-static inline IRTemp insert_64bit_resizer(LoadData *data, IROp op, IRSB *sb) {
-   IROp new_op = Iop_INVALID;
+static inline IRTemp insert_64bit_resizer(IRTemp src_tmp, IRSB *sb) {
+   IROp op = Iop_32Uto64;
    IRType new_type = Ity_I64;
+   IRType original_type = typeOfIRTemp(sb->tyenv, src_tmp);
 
    /* 32 -> 64 */
-   if(data->ty == Ity_I32) {
-      if(op == Iop_64to32) {
-          new_op = Iop_32Uto64;
-      }
-   /* 64 -> 32 */
-   } else if(data->ty == Ity_I64) {
-      if(op == Iop_32Sto64 || op == Iop_32Uto64) {
-          new_op = Iop_64to32;
-          new_type = Ity_I32;
-      }
+   if(original_type == Ity_I64) {
+       op = Iop_64to32;
+       new_type = Ity_I32;
    }
    
-   if(new_op != Iop_INVALID) {
-       IRTemp new_temp = newIRTemp(sb->tyenv, new_type);
-       IRStmt *st = IRStmt_WrTmp(
-                                 new_temp,
-                                 IRExpr_Unop(
-                                     new_op,
-                                     IRExpr_RdTmp(
-                                         data->dest_temp
-                                     )
+   IRTemp new_temp = newIRTemp(sb->tyenv, new_type);
+   IRStmt *st = IRStmt_WrTmp(
+                             new_temp,
+                             IRExpr_Unop(
+                                 op,
+                                 IRExpr_RdTmp(
+                                     src_tmp
                                  )
-                              );
-       addStmtToIRSB(sb, st);
+                             )
+                          );
+   addStmtToIRSB(sb, st);
 
-       return new_temp;
-   }
-
-   return data->dest_temp;
+   return new_temp;
 }
 
 /* Basically the same as instrument_access_tmp. But to be used on RdTmp on
@@ -1098,7 +1112,7 @@ inline void fi_reg_flip_or_leave_registers(toolData *tool_data,
 }
 
 /* Performs a flip on a given buffer `buffer` within `size`,  supports write-back
-   for register `offset`.
+   for register `offset`.*/
 /* -------------------------------------------------------------------------------*/
 static inline void flip_or_leave_on_buffer(toolData *tool_data, 
                                            UChar *buffer,

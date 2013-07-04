@@ -41,14 +41,6 @@ Linux only!
 Test runs and options are specified by ```tests.json```, other
 parameters (paths, benchmark runs) are located inside of ```rake.config.rb```.
 
-I noticed a crash if trying to run ```dhry_fitin``` under ```-m64``` and
-```--include=$PWD/dhry_fitin```. This is caused by instructions
-resulting from Valgrind recompilation at some point (```Proc_8```) and
-so far the reason is unknown but it does not occur if omitting
-instrumentation of ```fi_reg_flip_or_leave_before_store```. Nonetheless,
-attempting to isolate this problem makes it disappear. This needs some
-research. For now, ```-m32``` is always enforced here.
-
 ## benchmark\_dhry, benchmark\_linpack
 
 This builds and executes a Dhrystone/Linpack implementation not customized
