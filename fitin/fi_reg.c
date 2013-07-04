@@ -88,7 +88,6 @@ static void update_reg_origins(toolData *tool_data,
 static IRTemp instrument_access_tmp(toolData *tool_data,
                                     XArray *loads,
                                     IRTemp tmp,
-                                    IRType ty,
                                     IRSB *sb);
 
 static IRTemp insert_64bit_resizer(LoadData *data, IROp op, IRSB *sb);
@@ -550,12 +549,11 @@ static inline IRTemp insert_size_widener(toolData *tool_data,
 
 /* Whenever an RdTmp occurs, this function needs to be called to manage 
    all necessary things, and inserting the helper. Needs `loads` for
-   doing a relevance check for `tmp`. `ty` is the type of `temp`.*/
+   doing a relevance check for `tmp`. */
 /* --------------------------------------------------------------------------*/
 static inline IRTemp instrument_access_tmp(toolData *tool_data,
                                            XArray *loads,
                                            IRTemp tmp,
-                                           IRType ty,
                                            IRSB *sb) {
 
     LoadData key = (LoadData) { tmp, 0, 0 };
@@ -567,6 +565,7 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
         IRTemp new_temp, access_temp = tmp;
         IRExpr **args;
         IRDirty *dirty;
+        IRType ty = typeOfIRTemp(sb->tyenv, tmp);
 
         /* Insert widener if temp is too small for being an argument. */
         if(ty < tool_data->gWordTy) {
@@ -639,7 +638,6 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                 IRTemp new_temp = instrument_access_tmp(tool_data,
                                                         loads,
                                                         (*expr)->Iex.RdTmp.tmp,
-                                                        typeOfIRTemp(sb->tyenv, (*expr)->Iex.RdTmp.tmp),
                                                         sb);
                 if(new_temp != IRTemp_INVALID) {
                     add_replacement(replacements,
