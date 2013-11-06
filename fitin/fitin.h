@@ -63,7 +63,7 @@ typedef struct _toolData {
     // A filtertype for the monitorable instructions.
     filterType filter;
     // If filtertype is MT_FILTFUNC this is the function name to be filtered by.
-    Char *filtstr;
+    HChar *filtstr;
     // Executed instructions counter
     ULong instCnt;
     // Instruction limit

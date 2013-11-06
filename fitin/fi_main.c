@@ -82,7 +82,7 @@ static toolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
 /* --------------------------------------------------------------------------*/
-static Int cmpMonitorable (void *v1, void *v2) {
+static Int cmpMonitorable (const void *v1, const void *v2) {
     Monitorable m1 = *(Monitorable *)v1;
     Monitorable m2 = *(Monitorable *)v2;
     if (m1.monAddr < m2.monAddr) {
@@ -125,8 +125,8 @@ static void initTData(void) {
 /* Check whether the instruction at 'instAddr' is in the function with the name
    in 'fnc' */
 /* --------------------------------------------------------------------------*/
-static inline Bool instInFunc(Addr instAddr, Char *fnc) {
-    Char fnname[MAX_STR_SIZE];
+static inline Bool instInFunc(Addr instAddr, const HChar *fnc) {
+    HChar fnname[MAX_STR_SIZE];
     return (VG_(get_fnname)(instAddr, fnname, sizeof(fnname))
             && !VG_(strcmp)(fnname, fnc));
 }
@@ -155,8 +155,8 @@ void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
 /* --------------------------------------------------------------------------*/
 static inline Bool instInInclude(Addr instAddr, char *incl) {
 
-    Char filename[MAX_STR_SIZE];
-    Char dirname[MAX_STR_SIZE];
+    HChar filename[MAX_STR_SIZE];
+    HChar dirname[MAX_STR_SIZE];
     Bool diravail;
     UInt linenum;
     Bool retval;
@@ -212,7 +212,7 @@ static inline void incrInst(void) {
    Valgrind helps to parse them.
  */
 /* --------------------------------------------------------------------------*/
-static Bool fi_process_cmd_line_option(Char *arg) {
+static Bool fi_process_cmd_line_option(const HChar *arg) {
 
     if VG_STR_CLO(arg, "--fnname", tData.filtstr) {
         tData.filter = MT_FILTFUNC;
@@ -381,6 +381,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                            IRSB *sbIn,
                            VexGuestLayout *layout,
                            VexGuestExtents *vge,
+													 VexArchInfo *archInfo,
                            IRType gWordTy, IRType hWordTy ) {
     IRSB      *sbOut;
     IRStmt    *st;
@@ -389,7 +390,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     int i;
     XArray *loads = NULL, *replacements = NULL;
 
-    /* We don't currently support this case. */
+    /* We don't currently support this case. - Really? */
     if (gWordTy != hWordTy) {
         VG_(tool_panic)("host/guest word size mismatch");
     }
@@ -688,7 +689,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
    exists a monitorable. Otherwise, we can't handle bytes that are located away
    from `a`, such as arrays or strings. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
@@ -712,15 +713,15 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
 
 /* Callback for mem on ascii data. Passes strlen + 1 to fi_reg_on_mem_read. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
                                    Addr a) {
-    SizeT strlen = VG_(strlen)((Char*) a) + 1;
+    SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
     fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
 /* Callback for register syscalls. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_reg_read(CorePart part, ThreadId tid, const HChar *s,
                                PtrdiffT offset, SizeT size) {
     if(part == Vg_CoreSysCall) {
         UChar *buf = VG_(malloc)("fi.reg.syscall.reg", size);

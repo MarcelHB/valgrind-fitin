@@ -2831,6 +2831,8 @@ AC_CONFIG_FILES([
    cachegrind/cg_annotate
    cachegrind/cg_diff
    callgrind/Makefile
+   fitin/Makefile
+   fitin/tests/Makefile
    callgrind/callgrind_annotate
    callgrind/callgrind_control
    callgrind/tests/Makefile

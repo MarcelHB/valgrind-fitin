@@ -110,10 +110,10 @@ void fi_reg_set_occupancy(toolData *tool_data,
                           IRSB *sb);
 
 /* Function to be used by XArray to sort loads by destination IRTemp. */
-Int fi_reg_compare_loads(void *l1, void *l2);
+Int fi_reg_compare_loads(const void *l1, const void *l2);
 
 /* Function to be used by XArray to sort replacements by replacable IRTemp. */
-Int fi_reg_compare_replacements(void *l1, void *l2);
+Int fi_reg_compare_replacements(const void *l1, const void *l2);
 
 /* This method must be used if we know that data is definitely read from 
    memory (syscall). It takes the address `a` and the size `size` to check

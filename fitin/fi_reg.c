@@ -101,7 +101,7 @@ inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
 
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
-Int fi_reg_compare_loads(void *l1, void *l2) {
+Int fi_reg_compare_loads(const void *l1, const void *l2) {
     IRTemp t1 = ((LoadData*)l1)->dest_temp;
     IRTemp t2 = ((LoadData*)l2)->dest_temp;
 
@@ -110,7 +110,7 @@ Int fi_reg_compare_loads(void *l1, void *l2) {
 
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
-Int fi_reg_compare_replacements(void *r1, void *r2) {
+Int fi_reg_compare_replacements(const void *r1, const void *r2) {
     IRTemp t1 = ((ReplaceData*)r1)->old_temp;
     IRTemp t2 = ((ReplaceData*)r2)->old_temp;
 
@@ -687,10 +687,10 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
         case Iex_Unop:
             INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Unop.arg);
             break;
-        case Iex_Mux0X:
-            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.cond);
-            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.expr0);
-            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.Mux0X.exprX);
+        case Iex_ITE:
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.ITE.cond);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.ITE.iftrue);
+            INSTRUMENT_NESTED_ACCESS((*expr)->Iex.ITE.iffalse);
             break;
         case Iex_CCall: {
             IRExpr **expr_ptr = (*expr)->Iex.CCall.args;
@@ -928,8 +928,7 @@ static inline void replace_temp(IRTemp temp, IRExpr **expr) {
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_add_pre_dirty_modifiers(toolData *tool_data, IRDirty *st, IRSB *sb) {
-    /* This seems to be the only reliable test. */
-    if(st->needsBBP) {
+    if(st->nFxState > 0) {
         Int i = 0;
         for(; i < st->nFxState; ++i) {
             if(st->fxState[i].fx == Ifx_Read ||
@@ -1039,11 +1038,12 @@ static inline void add_modifier_for_register(toolData *tool_data,
                                              SizeT size,
                                              IRSB *sb) {
     IRStmt *st;
-    IRExpr **args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+    IRExpr **args = mkIRExprVec_4(IRExpr_BBPTR(),
+                                  mkIRExpr_HWord((HWord) tool_data),
                                   mkIRExpr_HWord(size),
                                   mkIRExpr_HWord(offset));
 
-    IRDirty *di = unsafeIRDirty_0_N(3,
+    IRDirty *di = unsafeIRDirty_0_N(4,
                                    "fi_reg_flip_or_leave_registers_wrap",
                                     VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_registers_wrap),
                                     args);
@@ -1053,7 +1053,6 @@ static inline void add_modifier_for_register(toolData *tool_data,
     di->fxState[0].size = size;
     di->fxState[0].nRepeats = 0;
     di->fxState[0].repeatLen = 0;
-    di->needsBBP = True;
 
     st = IRStmt_Dirty(di);
     addStmtToIRSB(sb, st);
