@@ -8,7 +8,7 @@
 ##------------------------------------------------------------##
 
 # Process this file with autoconf to produce a configure script.
-AC_INIT([Valgrind],[3.9.0.SVN],[valgrind-users@lists.sourceforge.net])
+AC_INIT([Valgrind],[3.9.0],[valgrind-users@lists.sourceforge.net])
 AC_CONFIG_SRCDIR(coregrind/m_main.c)
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
@@ -2831,11 +2831,11 @@ AC_CONFIG_FILES([
    cachegrind/cg_annotate
    cachegrind/cg_diff
    callgrind/Makefile
-   fitin/Makefile
-   fitin/tests/Makefile
    callgrind/callgrind_annotate
    callgrind/callgrind_control
    callgrind/tests/Makefile
+   fitin/Makefile
+   fitin/tests/Makefile
    helgrind/Makefile
    helgrind/tests/Makefile
    massif/Makefile

@@ -230,14 +230,8 @@ EXTRA_DIST =                                        \
 	sigalrm.vgtest                              \
 	sigaltstack.stderr.exp                      \
 	sigaltstack.vgtest                          \
-	std_list.stderr.exp		  	    \
-	std_list.vgtest			            \
-	std_string.stderr.exp		  	    \
-	std_string.vgtest			    \
 	std_thread.stderr.exp		  	    \
 	std_thread.vgtest			    \
-	str_tester.stderr.exp		  	    \
-	str_tester.vgtest			    \
 	tc01_simple_race.stderr.exp                 \
 	tc01_simple_race.vgtest                     \
 	tc02_simple_tls.stderr.exp                  \
@@ -376,8 +370,6 @@ endif
 if CXX_CAN_INCLUDE_THREAD_HEADER
 if HAVE_SHARED_POINTER_ANNOTATION
 check_PROGRAMS += \
-  std_list        \
-  std_string      \
   std_thread
 endif
 endif
@@ -457,12 +449,6 @@ endif
 if HAVE_PTHREAD_BARRIER
 matinv_LDADD                = $(LDADD) -lm
 endif
-
-std_list_SOURCES            = std_list.cpp
-std_list_CXXFLAGS           = $(AM_CXXFLAGS) -std=c++0x -Wno-sign-compare
-
-std_string_SOURCES          = std_string.cpp
-std_string_CXXFLAGS         = $(AM_CXXFLAGS) -std=c++0x -Wno-sign-compare
 
 std_thread_SOURCES          = std_thread.cpp
 std_thread_CXXFLAGS         = $(AM_CXXFLAGS) -std=c++0x
