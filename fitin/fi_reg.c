@@ -1023,7 +1023,7 @@ static inline void add_modifier_for_offset(toolData *tool_data,
    this will read the data from `offset` at `bp` and write back the flipped
    value. This is called before reg-reading IRDirty calls. */
 /* --------------------------------------------------------------------------*/
-static void VEX_REGPARM(3) fi_reg_flip_or_leave_registers_wrap(void *bp,
+static void VEX_REGPARM(0) fi_reg_flip_or_leave_registers_wrap(void *bp,
                                                                toolData *tool_data,
                                                                SizeT size,
                                                                Int offset) {
@@ -1043,7 +1043,7 @@ static inline void add_modifier_for_register(toolData *tool_data,
                                   mkIRExpr_HWord(size),
                                   mkIRExpr_HWord(offset));
 
-    IRDirty *di = unsafeIRDirty_0_N(4,
+    IRDirty *di = unsafeIRDirty_0_N(0,
                                    "fi_reg_flip_or_leave_registers_wrap",
                                     VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_registers_wrap),
                                     args);
