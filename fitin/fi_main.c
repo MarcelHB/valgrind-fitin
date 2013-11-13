@@ -223,6 +223,7 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
     else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
+    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
     else {
         return False;
     }
@@ -293,13 +294,19 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
     }
 
     // iterate over monitorables list
-    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+    if(td->ignore_monitorables) {
+        state.relevant = True;
+        state.size = size;
+        state.full_size = size;
+    } else {
+        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
-        if(mon->monValid) {
-            state.relevant = True;
-            state.size = size;
-            state.full_size = mon->monSize;
+            if(mon->monValid) {
+                state.relevant = True;
+                state.size = size;
+                state.full_size = mon->monSize;
+            }
         }
     }
 

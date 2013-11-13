@@ -94,6 +94,8 @@ typedef struct _toolData {
     SizeT *reg_load_sizes;
     /* Guest word size. */
     IRType gWordTy;
+    /* Special option ignoring monitorables. */
+    Bool ignore_monitorables;
 } toolData;
 
 #endif /* __FITIN_H */
