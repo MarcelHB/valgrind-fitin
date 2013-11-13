@@ -249,6 +249,8 @@ static void fi_print_usage(void) {
         "                              The golden run just monitors, no modify\n"
         "    --persist-flip=[yes|no]   writes flipped data back to its memory \n"
         "                              origin\n"
+        "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
+        "                              vant: No need for macros.\n"
     );
 }
 
