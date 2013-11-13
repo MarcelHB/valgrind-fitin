@@ -373,8 +373,8 @@ static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(toolData *tool_data,
 
     if(tool_data->injections == 0) {
         if(state->data == NULL) {
-            state->data = (void*) VG_(malloc)("fi.reg.external_copy", state->size);
-            VG_(memcpy)(state->data,(void*) state->location, state->size);
+            state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
+            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
         }
 
         flip_or_leave(tool_data, state->data, state);
@@ -425,8 +425,8 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
 
     if(tool_data->injections == 0 && state->location != location) {
         if(state->data == NULL) {
-            state->data = (void*) VG_(malloc)("fi.reg.external_copy", state->size);
-            VG_(memcpy)(state->data,(void*) state->location, state->size);
+            state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
+            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
         }
 
         flip_or_leave(tool_data, state->data, state);

@@ -44,9 +44,13 @@
 typedef struct {
     Bool relevant;
     Addr location;
+    /* The current size, subject to implicit casts via registers. */
     SizeT size;
+    /* The size given by the monitorable data. */
     SizeT full_size;
     void *data;
+    /* The size when initially loaded into memory. */
+    SizeT original_size;
 } LoadState;
 
 /* This struct is used at instrumentation time to keep track of

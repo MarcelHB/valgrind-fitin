@@ -276,7 +276,7 @@ static void fi_post_clo_init(void) {
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
                                          IRType ty) {
-    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL };
+    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
     Int size = sizeofIRType(ty);
@@ -289,7 +289,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
 
-    state.size = size;
+    state.size = state.original_size = size;
 
     // iterate over monitorables list
     if(td->ignore_monitorables) {
