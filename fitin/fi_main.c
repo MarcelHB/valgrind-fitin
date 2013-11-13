@@ -223,6 +223,7 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
     else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
+    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
     else {
         return False;
     }
@@ -275,7 +276,7 @@ static void fi_post_clo_init(void) {
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
                                          IRType ty) {
-    LoadState state = (LoadState) { False, dataAddr, 0 };
+    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
     Int size = sizeofIRType(ty);
@@ -288,15 +289,20 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
 
-    // iterate over monitorables list
-    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+    state.size = size;
 
-        if(mon->monValid) {
-            state.relevant = True;
-            state.size = size;
-            state.full_size = mon->monSize;
-            state.data = NULL;
+    // iterate over monitorables list
+    if(td->ignore_monitorables) {
+        state.relevant = True;
+        state.full_size = size;
+    } else {
+        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+
+            if(mon->monValid) {
+                state.relevant = True;
+                state.full_size = mon->monSize;
+            }
         }
     }
 

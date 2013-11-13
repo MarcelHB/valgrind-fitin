@@ -6,6 +6,12 @@
         "expected": "36",
         "vg_params": "--mod-bit=5 --mod-load-time=3"
     },{
+        "title": "On --all-addresses=yes, it flips without macros.",
+        "files": ["sample1a.c"],
+        "output": "sample1a",
+        "expected": "7",
+        "vg_params": "--mod-bit=3 --mod-load-time=4 --all-addresses=yes"
+    },{
         "title": "Flipping causes different branching.",
         "files": ["sample2.c"],
         "output": "sample2",
