@@ -121,7 +121,7 @@
         "title": "ASM written test to demonstrate work of replacing algo. (AMD64-test only)",
         "files": ["sample17.c"], 
         "output": "sample17",
-        "expected": "-1.50 1.50",
-        "vg_params": "--mod-bit=127 --mod-load-time=1"
+        "expected": "1.50 3.00",
+        "vg_params": "--mod-bit=31 --mod-load-time=1"
     }]
 }

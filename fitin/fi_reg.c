@@ -349,9 +349,17 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  Word state_list_index) {
     tool_data->loads++;
 
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
     if(tool_data->injections == 0) {
-        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-        flip_or_leave(tool_data, &data, state);
+        if(state->data != NULL) {
+            flip_or_leave(tool_data, state->data, state);
+            return *(UWord*)state->data;
+        } else {
+            flip_or_leave(tool_data, &data, state);
+        }
+    } else if(state->data != NULL) {
+        return *(UWord*)state->data;
     }
 
     return data;
@@ -380,7 +388,11 @@ static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(toolData *tool_data,
         flip_or_leave(tool_data, state->data, state);
         return state->data;
     } else {
-        return (void*) state->location;
+        if(state->data != NULL) {
+            return state->data;
+        } else {
+            return (void*) state->location;
+        }
     }
 }
 /* This dirty call must be used before ST. It will ensure that flipping is only
@@ -399,12 +411,19 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(toolData *tool_dat
                                                               Word state_list_index) {
     tool_data->loads++;
 
-    if(tool_data->injections == 0) {
-        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
+    if(tool_data->injections == 0) {
         if(state->location != address) {
-            flip_or_leave(tool_data, &data, state);
+            if(state->data != NULL) {
+                flip_or_leave(tool_data, state->data, state);
+                return *(UWord*)state->data;
+            } else {
+                flip_or_leave(tool_data, &data, state);
+            }
         }
+    } else if(state->data != NULL) {
+        return *(UWord*)state->data;
     }
 
     return data;
@@ -432,7 +451,11 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
         flip_or_leave(tool_data, state->data, state);
         return state->data;
     } else {
-        return (void*) state->location;
+        if(state != NULL) {
+            return state->data;
+        } else {
+            return (void*) state->location;
+        }
     }
 }
 
