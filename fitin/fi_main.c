@@ -100,7 +100,7 @@ static void initTData(void) {
     tData.monitoredInst = False;
     tData.loads = 0;
     tData.filter = MT_FILTFUNC;
-    tData.filtstr = "main";
+    tData.filtstr = (HChar*) "main";
     tData.instCnt = 0;
     tData.instLmt = 0;
     tData.modMemLoadTime = 1;
@@ -213,10 +213,13 @@ static inline void incrInst(void) {
  */
 /* --------------------------------------------------------------------------*/
 static Bool fi_process_cmd_line_option(const HChar *arg) {
+		const HChar* tmp_string = NULL;
 
-    if VG_STR_CLO(arg, "--fnname", tData.filtstr) {
+    if VG_STR_CLO(arg, "--fnname", tmp_string) {
+				tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTFUNC;
-    } else if VG_STR_CLO(arg, "--include", tData.filtstr) {
+    } else if VG_STR_CLO(arg, "--include", tmp_string) {
+				tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTINCL;
     } else if VG_INT_CLO(arg, "--mod-load-time", tData.modMemLoadTime) {}
     else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
