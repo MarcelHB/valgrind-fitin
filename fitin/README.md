@@ -66,6 +66,11 @@ Then compile the source code. Deactivating any optimization levels is
 strongly recommended, as optimazations by the compiler may render this
 tool useless.
 
+Alternatively, for example when having lots of variables, you may be
+interested in ```--all-addresses=yes```: You can ignore the macros
+as all memory locations inside the monitored program sections become
+target candidates.
+
 ### Command line
 
 Start FITIn by specifying ```--tool=fitin``` followed by options and the
@@ -92,7 +97,6 @@ For more information, please consult the ```README``` inside.
 ## Limitations
 
 * One fault injection per run.
-* Not supported data types: double, float, native vector types.
 * Monitoring across functions, only one per run (```--fnname=```),
   or all of the user code (```--include=``` to the source code).
 * If accessing data from memory, the tool focuses on matching start

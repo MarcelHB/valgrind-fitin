@@ -6,6 +6,12 @@
         "expected": "36",
         "vg_params": "--mod-bit=5 --mod-load-time=3"
     },{
+        "title": "On --all-addresses=yes, it flips without macros.",
+        "files": ["sample1a.c"],
+        "output": "sample1a",
+        "expected": "7",
+        "vg_params": "--mod-bit=3 --mod-load-time=4 --all-addresses=yes"
+    },{
         "title": "Flipping causes different branching.",
         "files": ["sample2.c"],
         "output": "sample2",
@@ -86,5 +92,36 @@
         "output": "sample12",
         "expected": "3 9",
         "vg_params": "--mod-bit=1 --mod-load-time=1"
+    },{
+        "title": "Handles non-integer data types.",
+        "files": ["sample13.c"],
+        "output": "sample13",
+        "expected": "3.75",
+        "vg_params": "--mod-bit=31 --mod-load-time=2"
+    },{
+        "title": "Can correctly branch on flipped double",
+        "files": ["sample14.c"],
+        "output": "sample14",
+        "expected": "a LE 0",
+        "vg_params": "--mod-bit=63 --mod-load-time=1"
+    },{
+        "title": "Persist float flip on --persist-flip=yes",
+        "files": ["sample15.c"],
+        "output": "sample15",
+        "expected": "-1.25",
+        "vg_params": "--mod-bit=31 --mod-load-time=2 --persist-flip=yes"
+    },{
+        "title": "Works with floats on function calls (compiler-noisy!).",
+        "files": ["sample16.c"],
+        "output": "sample16",
+        "cflags": "-g",
+        "expected": "-0.25",
+        "vg_params": "--mod-bit=31 --mod-load-time=19 --fnname=just_do_it"
+    },{
+        "title": "ASM written test to demonstrate work of replacing algo. (AMD64-test only)",
+        "files": ["sample17.c"], 
+        "output": "sample17",
+        "expected": "1.50 3.00",
+        "vg_params": "--mod-bit=31 --mod-load-time=1"
     }]
 }

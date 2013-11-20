@@ -82,7 +82,7 @@ static toolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
 /* --------------------------------------------------------------------------*/
-static Int cmpMonitorable (void *v1, void *v2) {
+static Int cmpMonitorable (const void *v1, const void *v2) {
     Monitorable m1 = *(Monitorable *)v1;
     Monitorable m2 = *(Monitorable *)v2;
     if (m1.monAddr < m2.monAddr) {
@@ -125,8 +125,8 @@ static void initTData(void) {
 /* Check whether the instruction at 'instAddr' is in the function with the name
    in 'fnc' */
 /* --------------------------------------------------------------------------*/
-static inline Bool instInFunc(Addr instAddr, Char *fnc) {
-    Char fnname[MAX_STR_SIZE];
+static inline Bool instInFunc(Addr instAddr, const HChar *fnc) {
+    HChar fnname[MAX_STR_SIZE];
     return (VG_(get_fnname)(instAddr, fnname, sizeof(fnname))
             && !VG_(strcmp)(fnname, fnc));
 }
@@ -155,8 +155,8 @@ void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
 /* --------------------------------------------------------------------------*/
 static inline Bool instInInclude(Addr instAddr, char *incl) {
 
-    Char filename[MAX_STR_SIZE];
-    Char dirname[MAX_STR_SIZE];
+    HChar filename[MAX_STR_SIZE];
+    HChar dirname[MAX_STR_SIZE];
     Bool diravail;
     UInt linenum;
     Bool retval;
@@ -212,7 +212,7 @@ static inline void incrInst(void) {
    Valgrind helps to parse them.
  */
 /* --------------------------------------------------------------------------*/
-static Bool fi_process_cmd_line_option(Char *arg) {
+static Bool fi_process_cmd_line_option(const HChar *arg) {
 
     if VG_STR_CLO(arg, "--fnname", tData.filtstr) {
         tData.filter = MT_FILTFUNC;
@@ -223,6 +223,7 @@ static Bool fi_process_cmd_line_option(Char *arg) {
     else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
+    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
     else {
         return False;
     }
@@ -248,6 +249,8 @@ static void fi_print_usage(void) {
         "                              The golden run just monitors, no modify\n"
         "    --persist-flip=[yes|no]   writes flipped data back to its memory \n"
         "                              origin\n"
+        "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
+        "                              vant: No need for macros.\n"
     );
 }
 
@@ -274,17 +277,13 @@ static void fi_post_clo_init(void) {
 /* --------------------------------------------------------------------------*/
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
-                                         SizeT size) {
-    LoadState state = (LoadState) { False, dataAddr, 0 };
+                                         IRType ty) {
+    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
+    Int size = sizeofIRType(ty);
 
     tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
-
-    /* Stop doing anything after the injection. */
-    if(td->injections > 0) {
-        return LOAD_STATE_INVALID_INDEX;
-    }
 
     key.monAddr = dataAddr;
 
@@ -292,14 +291,20 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
 
-    // iterate over monitorables list
-    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+    state.size = state.original_size = size;
 
-        if(mon->monValid) {
-            state.relevant = True;
-            state.size = size;
-            state.full_size = mon->monSize;
+    // iterate over monitorables list
+    if(td->ignore_monitorables) {
+        state.relevant = True;
+        state.full_size = size;
+    } else {
+        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+
+            if(mon->monValid) {
+                state.relevant = True;
+                state.full_size = mon->monSize;
+            }
         }
     }
 
@@ -323,10 +328,9 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        Int size = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_3(mkIRExpr_HWord((HWord) td),
                              expr->Iex.Load.addr,
-                             mkIRExpr_HWord(size));
+                             mkIRExpr_HWord(expr->Iex.Load.ty));
         di = unsafeIRDirty_0_N(3,
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
@@ -338,6 +342,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 
         load_data->ty = expr->Iex.Load.ty;
         load_data->addr = expr->Iex.Load.addr;
+        load_data->end = expr->Iex.Load.end;
         load_data->state_list_index = di->tmp;
 
         return load_data;
@@ -381,6 +386,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                            IRSB *sbIn,
                            VexGuestLayout *layout,
                            VexGuestExtents *vge,
+													 VexArchInfo *archInfo,
                            IRType gWordTy, IRType hWordTy ) {
     IRSB      *sbOut;
     IRStmt    *st;
@@ -389,7 +395,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     int i;
     XArray *loads = NULL, *replacements = NULL;
 
-    /* We don't currently support this case. */
+    /* We don't currently support this case. - Really? */
     if (gWordTy != hWordTy) {
         VG_(tool_panic)("host/guest word size mismatch");
     }
@@ -476,18 +482,16 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
-                        /* This will ignore anything greater than platform size. */
-                        if(load_data->ty <= tData.gWordTy) {
-                            load_data->dest_temp = st->Ist.WrTmp.tmp;
-                            fi_reg_add_temp_load(loads, load_data);
-                        } 
+                        load_data->dest_temp = st->Ist.WrTmp.tmp;
+                        fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
                         fi_reg_add_load_on_get(&tData, 
                                                loads,
                                                st->Ist.WrTmp.tmp,
                                                typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
-                                               st->Ist.WrTmp.data);
+                                               st->Ist.WrTmp.data,
+                                               sbOut);
                     }
                     break;
                 }
@@ -677,6 +681,15 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
    small. */
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
+    Int size = VG_(sizeXA)(tData.load_states), i = 0;
+
+    for(; i < size; ++i) {
+        LoadState *state = VG_(indexXA)(tData.load_states, i);
+        if(state->data != NULL) {
+            VG_(free)(state->data);
+        }
+    }
+
     VG_(deleteXA)(tData.load_states);
     tData.load_states = VG_(newXA)(VG_(malloc),
                                    "fi.reg.loadStates.renew",
@@ -688,7 +701,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
    exists a monitorable. Otherwise, we can't handle bytes that are located away
    from `a`, such as arrays or strings. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
     if(tData.injections == 0 && part == Vg_CoreSysCall) {
@@ -712,15 +725,15 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
 
 /* Callback for mem on ascii data. Passes strlen + 1 to fi_reg_on_mem_read. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
                                    Addr a) {
-    SizeT strlen = VG_(strlen)((Char*) a) + 1;
+    SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
     fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
 /* Callback for register syscalls. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_reg_read(CorePart part, ThreadId tid, const HChar *s,
                                PtrdiffT offset, SizeT size) {
     if(part == Vg_CoreSysCall) {
         UChar *buf = VG_(malloc)("fi.reg.syscall.reg", size);
