@@ -277,17 +277,13 @@ static void fi_post_clo_init(void) {
 /* --------------------------------------------------------------------------*/
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
-                                         SizeT size) {
-    LoadState state = (LoadState) { False, dataAddr, 0 };
+                                         IRType ty) {
+    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
+    Int size = sizeofIRType(ty);
 
     tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
-
-    /* Stop doing anything after the injection. */
-    if(td->injections > 0) {
-        return LOAD_STATE_INVALID_INDEX;
-    }
 
     key.monAddr = dataAddr;
 
@@ -295,10 +291,11 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
 
+    state.size = state.original_size = size;
+
     // iterate over monitorables list
     if(td->ignore_monitorables) {
         state.relevant = True;
-        state.size = size;
         state.full_size = size;
     } else {
         if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
@@ -306,7 +303,6 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
 
             if(mon->monValid) {
                 state.relevant = True;
-                state.size = size;
                 state.full_size = mon->monSize;
             }
         }
@@ -332,10 +328,9 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        Int size = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_3(mkIRExpr_HWord((HWord) td),
                              expr->Iex.Load.addr,
-                             mkIRExpr_HWord(size));
+                             mkIRExpr_HWord(expr->Iex.Load.ty));
         di = unsafeIRDirty_0_N(3,
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
@@ -347,6 +342,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 
         load_data->ty = expr->Iex.Load.ty;
         load_data->addr = expr->Iex.Load.addr;
+        load_data->end = expr->Iex.Load.end;
         load_data->state_list_index = di->tmp;
 
         return load_data;
@@ -486,18 +482,16 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
-                        /* This will ignore anything greater than platform size. */
-                        if(load_data->ty <= tData.gWordTy) {
-                            load_data->dest_temp = st->Ist.WrTmp.tmp;
-                            fi_reg_add_temp_load(loads, load_data);
-                        } 
+                        load_data->dest_temp = st->Ist.WrTmp.tmp;
+                        fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
                         fi_reg_add_load_on_get(&tData, 
                                                loads,
                                                st->Ist.WrTmp.tmp,
                                                typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
-                                               st->Ist.WrTmp.data);
+                                               st->Ist.WrTmp.data,
+                                               sbOut);
                     }
                     break;
                 }
@@ -687,6 +681,15 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
    small. */
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
+    Int size = VG_(sizeXA)(tData.load_states), i = 0;
+
+    for(; i < size; ++i) {
+        LoadState *state = VG_(indexXA)(tData.load_states, i);
+        if(state->data != NULL) {
+            VG_(free)(state->data);
+        }
+    }
+
     VG_(deleteXA)(tData.load_states);
     tData.load_states = VG_(newXA)(VG_(malloc),
                                    "fi.reg.loadStates.renew",

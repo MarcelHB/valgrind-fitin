@@ -44,8 +44,13 @@
 typedef struct {
     Bool relevant;
     Addr location;
+    /* The current size, subject to implicit casts via registers. */
     SizeT size;
+    /* The size given by the monitorable data. */
     SizeT full_size;
+    void *data;
+    /* The size when initially loaded into memory. */
+    SizeT original_size;
 } LoadState;
 
 /* This struct is used at instrumentation time to keep track of
@@ -55,6 +60,7 @@ typedef struct {
     IRType ty;
     IRExpr *addr; 
     IRTemp state_list_index;
+    IREndness end;
 } LoadData;
 
 /* Just a data tuple of (old temp, new temp) used to replace original
@@ -75,7 +81,8 @@ Bool fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRTemp new_temp,
                             IRType ty,
-                            IRExpr *expr);
+                            IRExpr *expr,
+                            IRSB *sb);
 
 /* This method is only needed on 64bit guests on a WrTmp. It checks `expr` for
    the presence of some resizing Unops that will be ignored for access but used

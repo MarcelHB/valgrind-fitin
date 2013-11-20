@@ -56,17 +56,17 @@ static void analyze_dirty_and_add_modifiers(toolData *tool_data,
 
 static UChar flip_byte_at_bit(UChar byte, UChar bit);
 
-static UWord flip_or_leave(toolData *tool_data, UWord data, LoadState *state);
+static void flip_or_leave(toolData *tool_data, void *data, LoadState *state);
 
 static void flip_or_leave_on_buffer(toolData *tool_data, 
                                     UChar *buffer,
                                     Int offset,
                                     SizeT size);
 
-static UChar* get_destination_address(Addr a, SizeT size, UChar bit);
+static UChar* get_destination_address(void *a, SizeT size, UChar bit);
 
 static void optional_memory_writing(toolData *tool_data,
-                                    UWord data,
+                                    void *data,
                                     SizeT full_size,
                                     Addr location,
                                     Bool data_flipped);
@@ -265,13 +265,23 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
     }
 }
 
+/* Updates the state list at `state_list_index` for the type `ty`. */
+/* --------------------------------------------------------------------------*/
+static void VEX_REGPARM(3) fi_reg_update_type(toolData *tool_data, 
+                                              Word state_list_index,
+                                              IRType ty) {
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+    state->size = sizeofIRType(ty);
+}
+
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline Bool fi_reg_add_load_on_get(toolData *tool_data,
                                    XArray *loads,
                                    IRTemp new_temp,
                                    IRType ty,
-                                   IRExpr *expr) {
+                                   IRExpr *expr,
+                                   IRSB *sb) {
     if(expr->tag == Iex_Get) {
         Word first, last;
         Int offset = expr->Iex.Get.offset;
@@ -290,13 +300,29 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
                that only contains the new IRTemp, created by WrTmp. */
             LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
 
-            if(ty <= load_data->ty) {
-                LoadData new_load_data = *load_data;
-                new_load_data.dest_temp = new_temp;
-                /* Adjust for retrieval size.*/
-                new_load_data.ty = ty;
+            LoadData new_load_data = *load_data;
+            new_load_data.dest_temp = new_temp;
+            /* Adjust for retrieval size.*/
+            new_load_data.ty = ty;
 
-                fi_reg_add_temp_load(loads, &new_load_data);
+            fi_reg_add_temp_load(loads, &new_load_data);
+
+            /* We must inform the state list about the new type/size. */
+            if(ty != load_data->ty) {
+                IRStmt *st;
+                IRExpr **args;
+                IRDirty *dirty;
+
+                args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+                                     IRExpr_RdTmp(new_load_data.state_list_index),
+                                     mkIRExpr_HWord(ty));
+
+                dirty = unsafeIRDirty_0_N(3,
+                                  "fi_reg_update_type",
+                                  VG_(fnptr_to_fnentry)(&fi_reg_update_type),
+                                  args);
+                st = IRStmt_Dirty(dirty);
+                addStmtToIRSB(sb, st);
             }
         }
 
@@ -323,53 +349,128 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
                                                  Word state_list_index) {
     tool_data->loads++;
 
-    if(tool_data->injections == 0 && state_list_index != LOAD_STATE_INVALID_INDEX) {
-        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-        return flip_or_leave(tool_data, data, state);
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+    if(tool_data->injections == 0) {
+        if(state->data != NULL) {
+            flip_or_leave(tool_data, state->data, state);
+            return *(UWord*)state->data;
+        } else {
+            flip_or_leave(tool_data, &data, state);
+        }
+    } else if(state->data != NULL) {
+        return *(UWord*)state->data;
     }
 
     return data;
 }
 
+/* Similar to fi_reg_flip_or_leave, but instead of accepting and returning the
+   value to flip, we use a pointer. The flipped value is located at the 
+   address which is returned by this function. */
+/* --------------------------------------------------------------------------*/
+/* Prevents warning. */
+static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(toolData *tool_data,
+                                                     Word state_list_index);
+
+static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(toolData *tool_data,
+                                                     Word state_list_index) {
+    tool_data->loads++;
+
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+    if(tool_data->injections == 0) {
+        if(state->data == NULL) {
+            state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
+            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
+        }
+
+        flip_or_leave(tool_data, state->data, state);
+        return state->data;
+    } else {
+        if(state->data != NULL) {
+            return state->data;
+        } else {
+            return (void*) state->location;
+        }
+    }
+}
 /* This dirty call must be used before ST. It will ensure that flipping is only
    done if the original address of the IRTemp and the destination `address` are
    different. */
 /* --------------------------------------------------------------------------*/
 /* Prevents warning. */
-static UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
-                                               UWord data,
-                                               Addr address,
-                                               Word state_list_index);
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(toolData *tool_data,
+                                                              UWord data,
+                                                              Addr address,
+                                                              Word state_list_index);
 
-static UWord fi_reg_flip_or_leave_before_store(toolData *tool_data,
-                                               UWord data,
-                                               Addr address,
-                                               Word state_list_index) {
+static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(toolData *tool_data,
+                                                              UWord data,
+                                                              Addr address,
+                                                              Word state_list_index) {
     tool_data->loads++;
 
-    if(tool_data->injections == 0) {
-        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
+    if(tool_data->injections == 0) {
         if(state->location != address) {
-            return flip_or_leave(tool_data, data, state);
+            if(state->data != NULL) {
+                flip_or_leave(tool_data, state->data, state);
+                return *(UWord*)state->data;
+            } else {
+                flip_or_leave(tool_data, &data, state);
+            }
         }
+    } else if(state->data != NULL) {
+        return *(UWord*)state->data;
     }
 
     return data;
 }
 
+/* Same as above, but also only with pointers. */
+/* --------------------------------------------------------------------------*/
+static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool_data,
+                                                                  Addr location,
+                                                                  Word state_list_index);
+
+static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool_data,
+                                                                  Addr location,
+                                                                  Word state_list_index) {
+    tool_data->loads++;
+
+    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+    if(tool_data->injections == 0 && state->location != location) {
+        if(state->data == NULL) {
+            state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
+            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
+        }
+
+        flip_or_leave(tool_data, state->data, state);
+        return state->data;
+    } else {
+        if(state != NULL) {
+            return state->data;
+        } else {
+            return (void*) state->location;
+        }
+    }
+}
+
 /* The method that is performing the bit-flip if applicable. It takes place 
    inside of `data` and will be returned. */
 /* --------------------------------------------------------------------------*/
-static inline UWord flip_or_leave(toolData *tool_data,
-                                  UWord data,
-                                  LoadState *state) {
+static inline void flip_or_leave(toolData *tool_data,
+                                 void *data,
+                                 LoadState *state) {
 
     if(state->relevant) {
         tool_data->monLoadCnt++;
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-            UChar *addr = get_destination_address((Addr) &data, state->size, tool_data->modBit);
+            UChar *addr = get_destination_address(data, state->size, tool_data->modBit);
 
             if(addr != NULL) {
                 *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
@@ -388,8 +489,6 @@ static inline UWord flip_or_leave(toolData *tool_data,
             tool_data->injections++;
         }
     }
-
-    return data;
 }
 
 /* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
@@ -409,7 +508,7 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
 
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
-        UChar *addr = get_destination_address(a, size, tool_data->modBit);
+        UChar *addr = get_destination_address((void*) a, size, tool_data->modBit);
 
         if(addr != NULL) {
             *addr = flip_byte_at_bit(*addr, tool_data->modBit % 8);
@@ -427,7 +526,7 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
    flip. It tests whether `bit` is located inside of `a` + `size`. If not,
    this will return NULL. */
 /* --------------------------------------------------------------------------*/
-static inline UChar* get_destination_address(Addr a, SizeT size, UChar bit) {
+static inline UChar* get_destination_address(void *a, SizeT size, UChar bit) {
     UChar bit_size = size * 8; 
 
     if(bit < bit_size) {
@@ -454,17 +553,17 @@ static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
    `full_size` on memory again. */
 /* --------------------------------------------------------------------------*/
 static inline void optional_memory_writing(toolData *tool_data,
-                                           UWord data,
+                                           void *data,
                                            SizeT full_size,
                                            Addr location,
                                            Bool data_flipped) {
     if(tool_data->write_back_flip) {
-        UChar *data_addr = get_destination_address((Addr) &data,
+        UChar *data_addr = get_destination_address(data,
                                                    full_size,
                                                    tool_data->modBit);
 
         if(data_addr != NULL) {
-            UChar *dest_addr = get_destination_address(location,
+            UChar *dest_addr = get_destination_address((void*) location,
                                                        full_size,
                                                        tool_data->modBit);
 
@@ -487,7 +586,7 @@ static inline void optional_memory_writing_no_source(toolData *tool_data,
                                                      SizeT full_size) {
 
     if(tool_data->write_back_flip) {
-        UChar *addr = get_destination_address(location,
+        UChar *addr = get_destination_address((void*) location,
                                               full_size,
                                               tool_data->modBit);
 
@@ -566,34 +665,55 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
         IRExpr **args;
         IRDirty *dirty;
         IRType ty = typeOfIRTemp(sb->tyenv, tmp);
-
-        /* Insert widener if temp is too small for being an argument. */
-        if(ty < tool_data->gWordTy) {
-            access_temp = insert_size_widener(tool_data, tmp, ty, sb);
-            
-            if(access_temp == IRTemp_INVALID) {
-                return IRTemp_INVALID;
-            }
-        }
-            
-        new_temp = newIRTemp(sb->tyenv, ty);
+        Bool reload = False;
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
-                             IRExpr_RdTmp(access_temp),
-                             IRExpr_RdTmp(load_data->state_list_index));
-        dirty = unsafeIRDirty_0_N(3,
-                                  "fi_reg_flip_or_leave",
-                                  VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
-                                  args);
+
+        if(ty <= tool_data->gWordTy) {
+            /* Insert widener if temp is too small for being an argument. */
+            if(ty < tool_data->gWordTy) {
+                access_temp = insert_size_widener(tool_data, tmp, ty, sb);
+
+                if(access_temp == IRTemp_INVALID) {
+                    return IRTemp_INVALID;
+                }
+            }
+
+            new_temp = newIRTemp(sb->tyenv, ty);
+            args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+                                 IRExpr_RdTmp(access_temp),
+                                 IRExpr_RdTmp(load_data->state_list_index));
+            dirty = unsafeIRDirty_0_N(3,
+                                      "fi_reg_flip_or_leave",
+                                      VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave),
+                                      args);
+        } else {
+            new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
+            args = mkIRExprVec_2(mkIRExpr_HWord((HWord) tool_data),
+                                 IRExpr_RdTmp(load_data->state_list_index));
+            dirty = unsafeIRDirty_0_N(2,
+                                      "fi_reg_flip_or_leave_ext",
+                                      VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_ext),
+                                      args);
+            reload = True;
+        }
 
         /* Skip registering memory writing if not enabled. */
         if(tool_data->write_back_flip) {
-            /* Open issue: Can we predict the exact byte here w.r.t to full_size? */
+            /* Open issue: Can we predict the exact byte here w.r.t. full_size? */
             dirty->mAddr = load_data->addr;
             dirty->mSize = 1;
             dirty->mFx = Ifx_Write;
         }
         dirty->tmp = new_temp;
+
+        st = IRStmt_Dirty(dirty);
+        addStmtToIRSB(sb, st);
+
+        if(reload) {
+            IRExpr *expr = IRExpr_Load(load_data->end, load_data->ty, IRExpr_RdTmp(new_temp));
+            new_temp = newIRTemp(sb->tyenv, load_data->ty);
+            addStmtToIRSB(sb, IRStmt_WrTmp(new_temp, expr));
+        }
 
         /* We have to treat the newly introduced value equally to the original one. */
         new_load_data = *load_data;
@@ -601,9 +721,6 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
 
         VG_(addToXA)(loads, &new_load_data);
         VG_(sortXA)(loads);
-
-        st = IRStmt_Dirty(dirty);
-        addStmtToIRSB(sb, st);
 
         return new_temp;
     }
@@ -810,30 +927,44 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
 
     if(VG_(lookupXA)(loads, &key, &first, &last)) {
         IRStmt *st;
-        LoadData *load_data;
+        LoadData *load_data, new_load_data;
         IRTemp new_temp, access_temp = tmp;
         IRExpr **args;
+        Bool reload = False;
         IRDirty *dirty;
-                
-        /* Insert widener if temp is too small for being an argument. */
-        if(ty < tool_data->gWordTy) {
-            access_temp = insert_size_widener(tool_data, tmp, ty, sb);
-            
-            if(access_temp == IRTemp_INVALID) {
-                return IRTemp_INVALID;
-            }
-        } 
-                
-        new_temp = newIRTemp(sb->tyenv, ty);
         load_data = (LoadData*) VG_(indexXA)(loads, first);
-        args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
-                             IRExpr_RdTmp(access_temp), 
-                             address,
-                             IRExpr_RdTmp(load_data->state_list_index));
-        dirty = unsafeIRDirty_0_N(0,
-                                  "fi_reg_flip_or_leave_before_store",
-                                   VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
-                                   args);
+
+        if(ty <= tool_data->gWordTy) {
+            /* Insert widener if temp is too small for being an argument. */
+            if(ty < tool_data->gWordTy) {
+                access_temp = insert_size_widener(tool_data, tmp, ty, sb);
+                
+                if(access_temp == IRTemp_INVALID) {
+                    return IRTemp_INVALID;
+                }
+            } 
+                    
+            new_temp = newIRTemp(sb->tyenv, ty);
+            args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
+                                 IRExpr_RdTmp(access_temp), 
+                                 address,
+                                 IRExpr_RdTmp(load_data->state_list_index));
+            dirty = unsafeIRDirty_0_N(3,
+                                      "fi_reg_flip_or_leave_before_store",
+                                       VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store),
+                                       args);
+        } else {
+            new_temp = newIRTemp(sb->tyenv, tool_data->gWordTy);
+            args = mkIRExprVec_3(mkIRExpr_HWord((HWord) tool_data),
+                                 address,
+                                 IRExpr_RdTmp(load_data->state_list_index));
+            dirty = unsafeIRDirty_0_N(3,
+                                      "fi_reg_flip_or_leave_before_store_ext",
+                                      VG_(fnptr_to_fnentry)(&fi_reg_flip_or_leave_before_store_ext),
+                                      args);
+            reload = True;
+
+        }
 
         /* Skip registering memory writing if not enabled. */
         if(tool_data->write_back_flip) {
@@ -846,6 +977,18 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
 
         st = IRStmt_Dirty(dirty);
         addStmtToIRSB(sb, st);
+
+        if(reload) {
+            IRExpr *expr = IRExpr_Load(load_data->end, load_data->ty, IRExpr_RdTmp(new_temp));
+            new_temp = newIRTemp(sb->tyenv, load_data->ty);
+            addStmtToIRSB(sb, IRStmt_WrTmp(new_temp, expr));
+        }
+
+        new_load_data = *load_data;
+        new_load_data.dest_temp = new_temp;
+
+        VG_(addToXA)(loads, &new_load_data);
+        VG_(sortXA)(loads);
 
         return new_temp;
     }
@@ -1123,7 +1266,7 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
         Int full_size_offset = offset * 2 + 1;
-        UChar *addr = get_destination_address((Addr) buffer,
+        UChar *addr = get_destination_address(buffer,
                                               size,
                                               tool_data->modBit);
 
