@@ -46,3 +46,4 @@ coregrind/valgrind
 coregrind/vgdb
 fitin/tests/built
 !cpuida.o
+fitin/lua/install

@@ -2,6 +2,8 @@ include $(top_srcdir)/Makefile.tool.am
 
 EXTRA_DIST = docs/fi-manual.xml
 
+SUBDIRS = lua . tests
+
 pkginclude_HEADERS = fitin.h fi_reg.h fi_client.h
 
 #----------------------------------------------------------------------------
@@ -20,13 +22,13 @@ fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES      = \
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CPPFLAGS     = \
 	$(AM_CPPFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_CFLAGS       = \
-	$(AM_CFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
+	$(AM_CFLAGS_@VGCONF_PLATFORM_PRI_CAPS@) -DFITIN_WITH_LUA=1 -Ilua/install/include
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_DEPENDENCIES = \
 	$(TOOL_DEPENDENCIES_@VGCONF_PLATFORM_PRI_CAPS@)
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDADD        = \
 	$(TOOL_LDADD_@VGCONF_PLATFORM_PRI_CAPS@)
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LDFLAGS      = \
-	$(TOOL_LDFLAGS_@VGCONF_PLATFORM_PRI_CAPS@)
+	$(TOOL_LDFLAGS_@VGCONF_PLATFORM_PRI_CAPS@) -Llua/install/lib -llua
 fitin_@VGCONF_ARCH_PRI@_@VGCONF_OS@_LINK = \
 	$(top_builddir)/coregrind/link_tool_exe_@VGCONF_OS@ \
 	@VALT_LOAD_ADDRESS_PRI@ \
@@ -54,5 +56,4 @@ fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LINK = \
 	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_CFLAGS) \
 	$(fitin_@VGCONF_ARCH_SEC@_@VGCONF_OS@_LDFLAGS)
 endif
-
 
