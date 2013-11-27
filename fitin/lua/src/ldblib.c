@@ -340,7 +340,7 @@ static int db_gethook (lua_State *L) {
   return 3;
 }
 
-
+#ifndef FITIN_WITH_LUA
 static int db_debug (lua_State *L) {
   for (;;) {
     char buffer[250];
@@ -354,6 +354,7 @@ static int db_debug (lua_State *L) {
     lua_settop(L, 0);  /* remove eventual returns */
   }
 }
+#endif
 
 
 static int db_traceback (lua_State *L) {
@@ -371,7 +372,9 @@ static int db_traceback (lua_State *L) {
 
 
 static const luaL_Reg dblib[] = {
+#ifndef FITIN_WITH_LUA
   {"debug", db_debug},
+#endif
   {"getuservalue", db_getuservalue},
   {"gethook", db_gethook},
   {"getinfo", db_getinfo},

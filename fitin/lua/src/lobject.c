@@ -23,7 +23,9 @@
 #include "lstring.h"
 #include "lvm.h"
 
-
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
 
 LUAI_DDEF const TValue luaO_nilobject_ = {NILCONSTANT};
 
@@ -149,7 +151,11 @@ static lua_Number lua_strx2number (const char *s, char **endptr) {
   *endptr = cast(char *, s);  /* valid up to here */
  ret:
   if (neg) r = -r;
+#ifdef FITIN_WITH_LUA
+  return ldexp(r,e);
+#else
   return l_mathop(ldexp)(r, e);
+#endif
 }
 
 #endif

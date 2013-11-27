@@ -19,6 +19,10 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 /*
 ** list of valid conversion specifiers for the 'strftime' function

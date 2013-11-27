@@ -25,6 +25,10 @@
 #include "ltable.h"
 #include "lvm.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 #define hasjumps(e)	((e)->t != (e)->f)
 

@@ -10,6 +10,32 @@
 
 #include <limits.h>
 #include <stddef.h>
+#ifdef FITIN_WITH_LUA
+#include <stdio.h>
+#endif
+
+/*
+@@ The luai_num* macros define the primitive operations over numbers.
+*/
+
+/* the following operations need the math library */
+#if defined(lobject_c) || defined(lvm_c)
+#include <math.h>
+#endif
+
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
+#if defined(lobject_c) || defined(lvm_c)
+#ifdef FITIN_WITH_LUA
+#define luai_nummod(L,a,b)	((a) - floor((a)/(b))*(b))
+#define luai_numpow(L,a,b)	(pow(a,b))
+#else
+#define luai_nummod(L,a,b)	((a) - l_mathop(floor)((a)/(b))*(b))
+#define luai_numpow(L,a,b)	(l_mathop(pow)(a,b))
+#endif
+#endif
 
 
 /*
@@ -211,16 +237,26 @@
 */
 #if defined(LUA_LIB) || defined(lua_c)
 #include <stdio.h>
+#ifdef FITIN_WITH_LUA
+#define luai_writestring(s,l)	lua_print(s)
+#define luai_writeline() lua_print("\n")	
+#else
 #define luai_writestring(s,l)	fwrite((s), sizeof(char), (l), stdout)
 #define luai_writeline()	(luai_writestring("\n", 1), fflush(stdout))
+#endif
 #endif
 
 /*
 @@ luai_writestringerror defines how to print error messages.
 ** (A format string with one argument is enough for Lua...)
 */
+#ifdef FITIN_WITH_LUA
+#define luai_writestringerror(s,p) \
+  (lua_print(s,p))
+#else
 #define luai_writestringerror(s,p) \
 	(fprintf(stderr, (s), (p)), fflush(stderr))
+#endif
 
 
 /*
@@ -426,16 +462,6 @@
 #endif
 
 
-/*
-@@ The luai_num* macros define the primitive operations over numbers.
-*/
-
-/* the following operations need the math library */
-#if defined(lobject_c) || defined(lvm_c)
-#include <math.h>
-#define luai_nummod(L,a,b)	((a) - l_mathop(floor)((a)/(b))*(b))
-#define luai_numpow(L,a,b)	(l_mathop(pow)(a,b))
-#endif
 
 /* these are quite standard operations */
 #if defined(LUA_CORE)

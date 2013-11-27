@@ -20,6 +20,10 @@
 #include "lundump.h"
 #include "lzio.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 typedef struct {
  lua_State* L;
  ZIO* Z;

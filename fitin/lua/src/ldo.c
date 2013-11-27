@@ -31,6 +31,9 @@
 #include "lvm.h"
 #include "lzio.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
 
 
 

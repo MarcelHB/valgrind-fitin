@@ -29,6 +29,10 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#ifdef FITIN_WITH_LUAD
+#include "lua_vg.h"
+#endif
+
 
 /*
 ** LUA_PATH and LUA_CPATH are the names of the environment

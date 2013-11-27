@@ -10,7 +10,9 @@
 
 
 #include <stddef.h>
+#ifndef FITIN_WITH_LUA
 #include <stdio.h>
+#endif
 
 #include "lua.h"
 

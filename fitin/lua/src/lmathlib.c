@@ -16,12 +16,17 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 #undef PI
 #define PI	((lua_Number)(3.1415926535897932384626433832795))
 #define RADIANS_PER_DEGREE	((lua_Number)(PI/180.0))
 
 
+#ifndef FITIN_WITH_LUA
 
 static int math_abs (lua_State *L) {
   lua_pushnumber(L, l_mathop(fabs)(luaL_checknumber(L, 1)));
@@ -115,6 +120,34 @@ static int math_pow (lua_State *L) {
   return 1;
 }
 
+#else
+
+static int math_ceil (lua_State *L) {
+  lua_pushnumber(L, ceil(luaL_checknumber(L, 1)));
+  return 1;
+}
+
+static int math_floor (lua_State *L) {
+  lua_pushnumber(L, floor(luaL_checknumber(L, 1)));
+  return 1;
+}
+
+static int math_abs (lua_State *L) {
+  lua_pushnumber(L, abs(luaL_checknumber(L, 1)));
+  return 1;
+}
+
+static int math_pow (lua_State *L) {
+  lua_Number x = luaL_checknumber(L, 1);
+  lua_Number y = luaL_checknumber(L, 2);
+  lua_pushnumber(L, pow(x, y));
+  return 1;
+}
+
+#endif
+
+#ifndef FITIN_WITH_LUA
+
 static int math_log (lua_State *L) {
   lua_Number x = luaL_checknumber(L, 1);
   lua_Number res;
@@ -165,7 +198,7 @@ static int math_ldexp (lua_State *L) {
   return 1;
 }
 
-
+#endif
 
 static int math_min (lua_State *L) {
   int n = lua_gettop(L);  /* number of arguments */
@@ -207,14 +240,22 @@ static int math_random (lua_State *L) {
     case 1: {  /* only upper limit */
       lua_Number u = luaL_checknumber(L, 1);
       luaL_argcheck(L, (lua_Number)1.0 <= u, 1, "interval is empty");
+#ifdef FITIN_WITH_LUA
+      lua_pushnumber(L, floor(r*u) + (lua_Number)(1.0));  /* [1, u] */
+#else
       lua_pushnumber(L, l_mathop(floor)(r*u) + (lua_Number)(1.0));  /* [1, u] */
+#endif
       break;
     }
     case 2: {  /* lower and upper limits */
       lua_Number l = luaL_checknumber(L, 1);
       lua_Number u = luaL_checknumber(L, 2);
       luaL_argcheck(L, l <= u, 2, "interval is empty");
+#ifdef FITIN_WITH_LUA
+      lua_pushnumber(L, floor(r*(u-l+1)) + l);  /* [l, u] */
+#else
       lua_pushnumber(L, l_mathop(floor)(r*(u-l+1)) + l);  /* [l, u] */
+#endif
       break;
     }
     default: return luaL_error(L, "wrong number of arguments");
@@ -232,16 +273,17 @@ static int math_randomseed (lua_State *L) {
 
 static const luaL_Reg mathlib[] = {
   {"abs",   math_abs},
+  {"ceil",  math_ceil},
+  {"floor", math_floor},
+#ifndef FITIN_WITH_LUA
   {"acos",  math_acos},
   {"asin",  math_asin},
   {"atan2", math_atan2},
   {"atan",  math_atan},
-  {"ceil",  math_ceil},
   {"cosh",   math_cosh},
   {"cos",   math_cos},
   {"deg",   math_deg},
   {"exp",   math_exp},
-  {"floor", math_floor},
   {"fmod",   math_fmod},
   {"frexp", math_frexp},
   {"ldexp", math_ldexp},
@@ -249,18 +291,23 @@ static const luaL_Reg mathlib[] = {
   {"log10", math_log10},
 #endif
   {"log",   math_log},
+#endif
   {"max",   math_max},
   {"min",   math_min},
-  {"modf",   math_modf},
   {"pow",   math_pow},
+#ifndef FITIN_WITH_LUA
+  {"modf",   math_modf},
   {"rad",   math_rad},
+#endif
   {"random",     math_random},
   {"randomseed", math_randomseed},
+#ifndef FITIN_WITH_LUA
   {"sinh",   math_sinh},
   {"sin",   math_sin},
   {"sqrt",  math_sqrt},
   {"tanh",   math_tanh},
   {"tan",   math_tan},
+#endif
   {NULL, NULL}
 };
 

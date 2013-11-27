@@ -23,6 +23,10 @@
 #include "ltable.h"
 #include "lzio.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 
 #define next(ls) (ls->current = zgetc(ls->z))

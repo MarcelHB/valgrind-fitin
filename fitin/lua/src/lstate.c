@@ -51,6 +51,9 @@
 #define luai_makeseed()		cast(unsigned int, time(NULL))
 #endif
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
 
 
 /*

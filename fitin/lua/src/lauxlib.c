@@ -23,6 +23,10 @@
 
 #include "lauxlib.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 /*
 ** {======================================================
@@ -633,15 +637,19 @@ LUALIB_API int luaL_loadfilex (lua_State *L, const char *filename,
   int status, readstatus;
   int c;
   int fnameindex = lua_gettop(L) + 1;  /* index of filename on the stack */
+#ifndef FITIN_WITH_LUA
   if (filename == NULL) {
     lua_pushliteral(L, "=stdin");
     lf.f = stdin;
   }
   else {
+#endif
     lua_pushfstring(L, "@%s", filename);
     lf.f = fopen(filename, "r");
     if (lf.f == NULL) return errfile(L, "open", fnameindex);
+#ifndef FITIN_WITH_LUA
   }
+#endif
   if (skipcomment(&lf, &c))  /* read initial portion */
     lf.buff[lf.n++] = '\n';  /* add line to correct line numbers */
   if (c == LUA_SIGNATURE[0] && filename) {  /* binary file? */

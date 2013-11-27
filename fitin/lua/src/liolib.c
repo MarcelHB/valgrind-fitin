@@ -28,6 +28,10 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
+
 
 #if !defined(lua_checkmode)
 
@@ -561,6 +565,7 @@ static int f_seek (lua_State *L) {
 }
 
 
+#ifndef FITIN_WITH_LUA
 static int f_setvbuf (lua_State *L) {
   static const int mode[] = {_IONBF, _IOFBF, _IOLBF};
   static const char *const modenames[] = {"no", "full", "line", NULL};
@@ -570,6 +575,7 @@ static int f_setvbuf (lua_State *L) {
   int res = setvbuf(f, NULL, mode[op], sz);
   return luaL_fileresult(L, res == 0, NULL);
 }
+#endif
 
 
 
@@ -611,7 +617,9 @@ static const luaL_Reg flib[] = {
   {"lines", f_lines},
   {"read", f_read},
   {"seek", f_seek},
+#ifndef FITIN_WITH_LUA
   {"setvbuf", f_setvbuf},
+#endif
   {"write", f_write},
   {"__gc", f_gc},
   {"__tostring", f_tostring},
@@ -657,9 +665,11 @@ LUAMOD_API int luaopen_io (lua_State *L) {
   luaL_newlib(L, iolib);  /* new module */
   createmeta(L);
   /* create (and set) default files */
+#ifndef FITIN_WITH_LUA
   createstdfile(L, stdin, IO_INPUT, "stdin");
   createstdfile(L, stdout, IO_OUTPUT, "stdout");
   createstdfile(L, stderr, NULL, "stderr");
+#endif
   return 1;
 }
 

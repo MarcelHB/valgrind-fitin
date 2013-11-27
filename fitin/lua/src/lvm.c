@@ -26,7 +26,9 @@
 #include "ltm.h"
 #include "lvm.h"
 
-
+#ifdef FITIN_WITH_LUA
+#include "lua_vg.h"
+#endif
 
 /* limit for table tag-method chains (to avoid loops) */
 #define MAXTAGLOOP	100

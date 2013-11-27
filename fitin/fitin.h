@@ -35,6 +35,10 @@
 
 #include "fi_client.h"
 
+#ifdef FITIN_WITH_LUA
+#include <lua.h>
+#endif
+
 /* In order to monitor only a subset of the called functions we need filter
    the correct instructions. This can be done in various ways. I.e. the
    functions may be filtered by function name.
@@ -96,6 +100,15 @@ typedef struct _toolData {
     IRType gWordTy;
     /* Special option ignoring monitorables. */
     Bool ignore_monitorables;
+#ifdef FITIN_WITH_LUA
+		/* Path to a lua file to load. */
+		HChar *lua_script;
+		/* Lua state. */
+		lua_State *lua;
+		/* Available callbacks. */
+		/* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? */
+		ULong available_callbacks;
+#endif
 } toolData;
 
 #endif /* __FITIN_H */

@@ -45,6 +45,12 @@
 #include "fitin.h"
 #include "fi_reg.h"
 
+#ifdef FITIN_WITH_LUA
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+#endif
+
 static const unsigned int MAX_STR_SIZE = 512;
 typedef enum exitValues {
     EXIT_SUCCESS,
@@ -110,6 +116,11 @@ static void initTData(void) {
     tData.reg_temp_occupancies = NULL;
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
+#ifdef FITIN_WITH_LUA
+		tData.lua_script = NULL;
+		tData.lua = NULL;
+		tData.available_callbacks = 0;
+#endif
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -227,6 +238,11 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
     else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
+#ifdef FITIN_WITH_LUA 
+		else if VG_STR_CLO(arg, "--control-script", tmp_string) {
+				tData.lua_script = (HChar*) tmp_string;
+		}
+#endif
     else {
         return False;
     }
@@ -240,20 +256,25 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
 /* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
-        "    --fnname=<name>           monitor instructions in functon <name> \n"
-        "                              [main]\n"
-        "    --include=<dir>           monitor instructions whci have debug   \n"
-        "                              information from this directory        \n"
-        "    --mod-load-time=<number>  modify at a given load time [0]        \n"
-        "    --mod-bit=<number>        modify the given bit of the target     \n"
-        "    --inst-limit=<number>     the maximum numbers of instructions to \n"
-        "                              be executed. To prevent endless loops. \n"
         "    --golden-run=[yes|no]     States whether this is the golden run. \n"
         "                              The golden run just monitors, no modify\n"
-        "    --persist-flip=[yes|no]   writes flipped data back to its memory \n"
-        "                              origin\n"
+        "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
+        "                              origin.\n"
+#ifdef FITIN_WITH_LUA
+				"    --control-script=<path>   A control script written in Lua.       \n"
+				"                              Contains control callbacks.            \n"
+#else
+        "    --fnname=<name>           Monitor instructions in functon <name> \n"
+        "                              [Main].\n"
+        "    --include=<dir>           Monitor instructions which have debug  \n"
+        "                              information from this directory.       \n"
+        "    --mod-load-time=<number>  Modify at a given load time [0].       \n"
+        "    --mod-bit=<number>        Modify the given bit of the target.    \n"
+        "    --inst-limit=<number>     The maximum numbers of instructions to \n"
+        "                              be executed. To prevent endless loops. \n"
         "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
         "                              vant: No need for macros.\n"
+#endif
     );
 }
 
@@ -264,8 +285,45 @@ static void fi_print_debug_usage(void) {
     );
 }
 
+#ifdef FITIN_WITH_LUA
+/* --------------------------------------------------------------------------*/
+static const HChar* testable_lua_functions[] = {
+		"before_start"
+};
+
+/* --------------------------------------------------------------------------*/
+static void exit_for_invalid_lua(void) {
+		VG_(printf)("Cannot launch FITIn without valid --control-script!");
+		VG_(exit)(1);
+}
+
+/* --------------------------------------------------------------------------*/
+static void init_lua(void) {
+		tData.lua = luaL_newstate();
+		if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
+				exit_for_invalid_lua();
+		}
+
+		Int i = 0;
+		for(; i < sizeof(testable_lua_functions); ++i) {
+				lua_getglobal(tData.lua, testable_lua_functions[i]);
+				if(lua_isfunction(tData.lua, 1)) {
+						tData.available_callbacks |= 1 << i;
+				}
+				lua_remove(tData.lua, -1);
+		}
+}
+#endif
+
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
+#ifdef FITIN_WITH_LUA
+		if(tData.lua_script != NULL) {
+				init_lua();
+		} else {
+				exit_for_invalid_lua();
+		}
+#endif
 }
 
 /**
@@ -603,6 +661,10 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_temp_occupancies);
         VG_(free)(tData.reg_load_sizes);
     }
+
+#ifdef FITIN_WITH_LUA
+		lua_close(tData.lua);
+#endif
 
     VG_(printf)("[FITIn] Totals (of monitored code blocks)\n");
     VG_(printf)("[FITIn]   Overall variable accesses: %lu\n", (unsigned long) tData.loads);
