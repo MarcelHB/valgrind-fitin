@@ -14,7 +14,6 @@
 extern int lua_print(const char*, ...);
 #define sprintf(b,f,args...) VG_(sprintf)((HChar*)b,(HChar*)f,args)
 
-
 #define free(p) VG_(free)(p)
 #define realloc(p,n) VG_(realloc)((HChar*) "fitin.lua", p, n);
 
@@ -45,6 +44,8 @@ extern char* vg_setlocale(int, const char*);
 /* All we can do ... */
 #define time(n) (time_t)VG_(read_millisecond_timer)
 #define clock() (clock_t)VG_(read_millisecond_timer)
+extern size_t vg_strftime(void*, size_t, char*, ...);
+#define strftime(p,s,f,a...) vg_strftime(p,s,f,a)
 
 extern int* __errno_location(void);
 

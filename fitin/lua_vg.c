@@ -1,7 +1,9 @@
 #include <limits.h>
 #include <lua_vg.h>
 
+#include "pub_tool_libcbase.h"
 #include "pub_tool_libcprint.h"
+#include "pub_tool_mallocfree.h"
 #include "pub_tool_options.h"
 
 static struct lconv constant_lconv = {
@@ -221,5 +223,20 @@ extern char* vg_tmpnam(char *path) {
         }
     } else {
         return NULL;
+    }
+}
+
+static const char* strftime_warning = "Time not supported.";
+
+extern size_t vg_strftime(void *ptr, size_t size, char *format, ...) {
+    size_t warning_length = VG_(strlen)(strftime_warning) + 1;
+
+    if(warning_length <= size) {
+        VG_(memcpy)(ptr, strftime_warning, warning_length);
+        return warning_length;
+    } else {
+        VG_(memcpy)(ptr, strftime_warning, size - 1);
+        VG_(memcpy)(ptr + size - 1, "\0", 1);
+        return size;
     }
 }
