@@ -140,7 +140,12 @@ extern struct lconv* vg_localeconv(void) {
     return &constant_lconv;
 }
 
-extern void* vg_memchr(void *p, int value, size_t num) {
+extern double vg_difftime(time_t end, time_t begin) {
+    /* As we only have relative ms values, we can be as simple as that. */
+    return (double)(end - begin);
+}
+
+extern const void* vg_memchr(const void *p, int value, size_t num) {
     unsigned char c = (unsigned char) value;
     int i = 0;
     unsigned char *base = (unsigned char*) p;
@@ -153,6 +158,26 @@ extern void* vg_memchr(void *p, int value, size_t num) {
     }
 
     return NULL;
+}
+
+extern struct tm* vg_gmtime(const time_t *t) {
+    struct tm *_tm = (struct tm*)VG_(calloc)("fitin.lua.gmtime", 1, sizeof(struct tm));
+    time_t *as_time_t = (time_t*)_tm;
+    *as_time_t = *t;
+    
+    return _tm;
+}
+
+extern struct tm* vg_localtime(time_t t) {
+    struct tm *_tm = (struct tm*)VG_(calloc)("fitin.lua.localtime", 1, sizeof(struct tm));
+    time_t *as_time_t = (time_t*)_tm;
+    *as_time_t = t;
+
+    return _tm;
+}
+
+extern time_t vg_mktime(struct tm *t) {
+    return *((time_t*)t);
 }
 
 extern double vg_pow(double b, double e) {
@@ -206,7 +231,7 @@ extern char* vg_tmpnam(char *path) {
         VG_(sprintf)(buf, "%u", tmp_files++);
 
         size_t dir_length = VG_(strlen)(dir);
-        size_t name_length = VG_(strlen)(dir);
+        size_t name_length = VG_(strlen)(buf);
         size_t total_length = dir_length + name_length + 1;
 
         dir = VG_(realloc)("fiti.lua.temppath", dir, dir_length + name_length + 2);
@@ -226,17 +251,26 @@ extern char* vg_tmpnam(char *path) {
     }
 }
 
-static const char* strftime_warning = "Time not supported.";
-
-extern size_t vg_strftime(void *ptr, size_t size, char *format, ...) {
-    size_t warning_length = VG_(strlen)(strftime_warning) + 1;
-
-    if(warning_length <= size) {
-        VG_(memcpy)(ptr, strftime_warning, warning_length);
-        return warning_length;
+extern size_t vg_strftime(void *ptr, size_t size, char *format, struct tm *_tm) {
+    HChar buf[50];
+    VG_(memset)(buf, 0, sizeof(buf));
+    VG_(sprintf)(buf, "%u", *((time_t*)_tm));
+    size_t val_length = VG_(strlen)(buf) + 1;
+    
+    if(val_length <= size) {
+        VG_(strcpy)((HChar*)ptr, (HChar*)buf);
+        return val_length - 1;
     } else {
-        VG_(memcpy)(ptr, strftime_warning, size - 1);
-        VG_(memcpy)(ptr + size - 1, "\0", 1);
-        return size;
+        return 0;
     }
 }
+
+extern time_t vg_time(time_t *t) {
+    time_t time = (time_t)VG_(read_millisecond_timer)();
+    if(t != NULL) {
+        *t = time;
+    }
+
+    return time;
+}
+

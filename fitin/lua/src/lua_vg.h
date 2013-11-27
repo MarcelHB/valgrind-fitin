@@ -17,7 +17,7 @@ extern int lua_print(const char*, ...);
 #define free(p) VG_(free)(p)
 #define realloc(p,n) VG_(realloc)((HChar*) "fitin.lua", p, n);
 
-extern void* vg_memchr(void*, int, size_t);
+extern const void* vg_memchr(const void*, int, size_t);
 #define memchr(p,v,n) vg_memchr(p,v,n)
 #define memcmp(p1,p2,n) VG_(memcmp)(p1,p2,n)
 #define memcpy(d,s,sz) VG_(memcpy)(d,s,sz)
@@ -42,15 +42,24 @@ extern char* vg_setlocale(int, const char*);
 #define setlocale(c,l) vg_setlocale(c,l)
 
 /* All we can do ... */
-#define time(n) (time_t)VG_(read_millisecond_timer)
 #define clock() (clock_t)VG_(read_millisecond_timer)
-extern size_t vg_strftime(void*, size_t, char*, ...);
-#define strftime(p,s,f,a...) vg_strftime(p,s,f,a)
+extern double vg_difftime(time_t, time_t);
+#define difftime(e,b) vg_difftime(e,b)
+extern struct tm* vg_gmtime(const time_t*);
+#define gmtime(t) vg_gmtime(t)
+extern struct tm* vg_localtime(t);
+#define localtime(t) vg_localtime(t)
+extern time_t vg_mktime(struct tm*);
+#define mktime(tm) vg_mktime(tm)
+extern size_t vg_strftime(void*, size_t, char*, struct tm*);
+#define strftime(p,s,f,tm) vg_strftime(p,s,f,tm)
+extern time_t vg_time(time_t*);
+#define time(n) vg_time(n)
 
 extern int* __errno_location(void);
 
 #define exit(c) VG_(exit)(c)
-#define getenv(s) VG_(getenv)((HChar*)s)
+#define getenv(s) VG_(getenv)((HChar*) s)
 #define system(c) VG_(system)((HChar*) c)
 
 #define abs(n) ((n < 0) ? -(n) : n)
