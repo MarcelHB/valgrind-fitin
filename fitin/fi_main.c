@@ -293,7 +293,7 @@ static const HChar* testable_lua_functions[] = {
 
 /* --------------------------------------------------------------------------*/
 static void exit_for_invalid_lua(void) {
-		VG_(printf)("Cannot launch FITIn without valid --control-script!");
+		VG_(printf)("Cannot launch FITIn without valid --control-script!\n");
 		VG_(exit)(1);
 }
 
