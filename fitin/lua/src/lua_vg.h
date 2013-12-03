@@ -3,6 +3,7 @@
 
 #include <locale.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcfile.h"
@@ -11,7 +12,7 @@
 #include "pub_tool_libcsetjmp.h"
 #include "pub_tool_mallocfree.h"
 
-extern int lua_print(const char*, ...);
+extern void lua_print(const char*, ...);
 #define sprintf(b,f,args...) VG_(sprintf)((HChar*)b,(HChar*)f,args)
 
 #define free(p) VG_(free)(p)
@@ -47,7 +48,7 @@ extern double vg_difftime(time_t, time_t);
 #define difftime(e,b) vg_difftime(e,b)
 extern struct tm* vg_gmtime(const time_t*);
 #define gmtime(t) vg_gmtime(t)
-extern struct tm* vg_localtime(t);
+extern struct tm* vg_localtime(time_t t);
 #define localtime(t) vg_localtime(t)
 extern time_t vg_mktime(struct tm*);
 #define mktime(tm) vg_mktime(tm)
@@ -78,6 +79,9 @@ extern void vg_srand(unsigned int);
 #define remove(f) VG_(unlink)((HChar*)f)
 extern char* vg_tmpnam(char*);
 #define tmpnam(f) vg_tmpnam(f)
+extern FILE* vg_tmpfile(void);
+#define tmpfile() vg_tmpfile()
+#define tmpfile64() vg_tmpfile()
 
 extern int vg_islower(int);
 #define islower(n) vg_islower(n)
@@ -87,12 +91,10 @@ extern int vg_isalpha(int);
 #define isalpha(n) vg_isalpha(n)
 extern int vg_iscntrl(int);
 #define iscntrl(n) vg_iscntrl(n)
-extern int vg_isdigit(int);
-#define isdigit(n) vg_isdigit(n)
+#define isdigit(n) VG_(isdigit)(n)
 extern int vg_isalnum(int);
 #define isalnum(n) vg_isalnum(n)
-extern int vg_isspace(int);
-#define isspace(n) vg_isspace(n)
+#define isspace(n) VG_(isspace)(n)
 extern int vg_isgraph(int);
 #define isgraph(n) vg_isgraph(n)
 extern int vg_ispunct(int);
@@ -101,7 +103,47 @@ extern int vg_isxdigit(int);
 #define isxdigit(n) vg_isxdigit(n)
 extern int vg_toupper(int);
 #define toupper(n) vg_toupper(n)
-extern int vg_tolower(int);
-#define tolower(n) vg_tolower(n)
+#define tolower(n) VG_(tolower)(n)
+
+typedef struct vg_FILE {
+    Int fd;
+    UChar state_bits; /* EOF | Error | ... */
+    UChar mode_bits; /* read | write | append | exists | a+ */
+    Long size;
+    Long pos;
+    Long append_pos;
+} vg_FILE;
+
+extern int vg_fclose(FILE*);
+#define fclose(f) vg_fclose(f)
+extern int vg_feof(FILE*);
+#define feof(f) vg_feof(f)
+extern int vg_ferror(FILE*);
+#define ferror(f) vg_ferror(f)
+extern int vg_fflush(FILE*);
+#define fflush(f) vg_fflush(f)
+extern char* vg_fgets(char*, int, FILE*);
+#define fgets(v,n,f) vg_fgets(v,n,f)
+extern FILE* vg_fopen(const char*, const char*);
+#define fopen(f,m) vg_fopen(f,m)
+#define fopen64(f,m) vg_fopen(f,m)
+extern int vg_fprintf(FILE*, const char*, ...);
+#define fprintf(f,ff,args...) vg_fprintf(f, ff, args)
+extern int vg_fread(void*, size_t, size_t, FILE*);
+#define fread(p,s,c,f) vg_fread(p,s,c,f)
+extern FILE* vg_freopen(const char*, const char*, FILE*);
+#define freopen(p,m,f) vg_freopen(p,m,f)
+extern int vg_fscanf(FILE*, const char* f, ...);
+#define fscanf(f,ff,args...) vg_fscanf(f,ff,args)
+extern int vg_fseek(FILE*, long int, int);
+#define fseek(f,p,o) vg_fseek(f,p,o)
+extern long int vg_ftell(FILE*);
+#define ftell(f) vg_ftell(f)
+extern int vg_ungetc(int, FILE*);
+#define ungetc(c,f) vg_ungetc(c,f)
+extern size_t vg_fwrite(void*, size_t, size_t, FILE*);
+#define fwrite(p,s,c,f) vg_fwrite(p,s,c,f)
+extern int vg_getc(FILE*);
+#define getc(f) vg_getc(f)
 
 #endif
