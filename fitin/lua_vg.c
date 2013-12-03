@@ -539,7 +539,7 @@ extern int vg_fscanf(FILE *f, const char *format, ...) {
     if(left > 512) {
         left = 512;
     }
-    Char *fbuffer = VG_(calloc)("fitin.lua.fscanf", left, 1);
+    HChar *fbuffer = VG_(calloc)("fitin.lua.fscanf", left, 1);
 
     /* We should only have this case in Lua. */
     if(VG_(strcmp)(format, "%lf") == 0) {
