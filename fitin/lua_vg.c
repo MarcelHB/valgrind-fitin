@@ -500,10 +500,6 @@ extern int vg_fread(void *ptr, size_t size, size_t count, FILE* f) {
 
     vg_maybe_set_eof(vgf);
 
-    /* EOF */
-    if(vgf->state_bits == 1) {
-        return 0;
-    }
     return res;
 }
 
