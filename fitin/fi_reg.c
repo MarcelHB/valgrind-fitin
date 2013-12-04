@@ -453,7 +453,7 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
         flip_or_leave(tool_data, state->data, state);
         return state->data;
     } else {
-        if(state != NULL) {
+        if(state->data != NULL) {
             return state->data;
         } else {
             return (void*) state->location;
