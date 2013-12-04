@@ -96,6 +96,8 @@ typedef struct _toolData {
     IRType gWordTy;
     /* Special option ignoring monitorables. */
     Bool ignore_monitorables;
+    /* Continue executing runtime functions? */
+    Bool runtime_active;
 #ifdef FITIN_WITH_LUA
 		/* Path to a lua file to load. */
 		HChar *lua_script;

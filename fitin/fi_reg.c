@@ -126,7 +126,7 @@ static void fi_reg_set_occupancy_origin(toolData *tool_data,
                                         SizeT size,
                                         Word state_list_index) {
     /* After an injection, update any (remaining) information as irrelevant. */
-    if(tool_data->injections == 0) {
+    if(tool_data->runtime_active) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
         /* May be irrelevant at run time! */
         if(state->relevant) {
@@ -270,8 +270,10 @@ inline void fi_reg_set_occupancy(toolData *tool_data,
 static void VEX_REGPARM(3) fi_reg_update_type(toolData *tool_data, 
                                               Word state_list_index,
                                               IRType ty) {
-    LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
-    state->size = sizeofIRType(ty);
+    if(tool_data->runtime_active) {
+        LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+        state->size = sizeofIRType(ty);
+    }
 }
 
 /* See fi_reg.h */
@@ -351,7 +353,7 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(toolData *tool_data,
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
-    if(tool_data->injections == 0) {
+    if(tool_data->runtime_active) {
         if(state->data != NULL) {
             flip_or_leave(tool_data, state->data, state);
             return *(UWord*)state->data;
@@ -379,7 +381,7 @@ static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(toolData *tool_data,
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
-    if(tool_data->injections == 0) {
+    if(tool_data->runtime_active) {
         if(state->data == NULL) {
             state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
             VG_(memcpy)(state->data,(void*) state->location, state->original_size);
@@ -413,7 +415,7 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(toolData *tool_dat
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
-    if(tool_data->injections == 0) {
+    if(tool_data->runtime_active) {
         if(state->location != address) {
             if(state->data != NULL) {
                 flip_or_leave(tool_data, state->data, state);
@@ -442,7 +444,7 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
 
-    if(tool_data->injections == 0 && state->location != location) {
+    if(tool_data->runtime_active && state->location != location) {
         if(state->data == NULL) {
             state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
             VG_(memcpy)(state->data,(void*) state->location, state->original_size);
@@ -497,7 +499,9 @@ static inline void flip_or_leave(toolData *tool_data,
 static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(toolData *tool_data,
                                                          Addr a,
                                                          SizeT size) {
-    fi_reg_flip_or_leave_mem(tool_data, a, size);
+    if(tool_data->runtime_active) {
+        fi_reg_flip_or_leave_mem(tool_data, a, size);
+    }
 }
 
 /* See fi_reg.h */
@@ -1170,7 +1174,9 @@ static void VEX_REGPARM(0) fi_reg_flip_or_leave_registers_wrap(void *bp,
                                                                toolData *tool_data,
                                                                SizeT size,
                                                                Int offset) {
-    fi_reg_flip_or_leave_registers(tool_data, ((UChar*) bp) + offset, offset, size);
+    if(tool_data->runtime_active) {
+        fi_reg_flip_or_leave_registers(tool_data, ((UChar*) bp) + offset, offset, size);
+    }
 }
 
 /* A method that is configuring and inserting the helper function before an

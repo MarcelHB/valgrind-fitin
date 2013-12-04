@@ -114,6 +114,7 @@ static void initTData(void) {
     tData.reg_temp_occupancies = NULL;
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
+    tData.runtime_active = True;
 #ifdef FITIN_WITH_LUA
     tData.lua_script = NULL;
     tData.lua = NULL;
@@ -395,13 +396,21 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
 
     tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
 
-    key.monAddr = dataAddr;
+    state.size = state.original_size = size;
+
+    /* Discard-note if no longer supposed to run. */
+    if(!td->runtime_active) {
+      state.full_size = size;
+      state.relevant = False;
+
+      VG_(addToXA)(td->load_states, &state);
+
+      return state_list_size;
+    }
 
     if(VG_(clo_verbosity) > 1) {
         VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
     }
-
-    state.size = state.original_size = size;
 
     // iterate over monitorables list
 #ifndef FITIN_WITH_LUA
@@ -410,6 +419,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         state.full_size = size;
     } else {
 #endif
+        key.monAddr = dataAddr;
         if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
             Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
@@ -834,6 +844,17 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    "fi.reg.loadStates.renew",
                                    VG_(free),
                                    sizeof(LoadState));
+
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 4) {
+        lua_getglobal(tData.lua, "next_block");
+        if(lua_pcall(tData.lua, 0, 1, 0) == 0) {
+            tData.runtime_active = lua_toboolean(tData.lua, -1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+    }
+#endif
 }
 
 /* This method will check for every `size` bytes, beginning at `a` whether there
@@ -843,7 +864,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
-    if(tData.injections == 0 && part == Vg_CoreSysCall) {
+    if(tData.runtime_active && part == Vg_CoreSysCall) {
         Word first, last;
         Int mem_offset = 0;
 
@@ -874,7 +895,7 @@ static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_reg_read(CorePart part, ThreadId tid, const HChar *s,
                                PtrdiffT offset, SizeT size) {
-    if(part == Vg_CoreSysCall) {
+    if(tData.runtime_active && part == Vg_CoreSysCall) {
         UChar *buf = VG_(malloc)("fi.reg.syscall.reg", size);
         VG_(get_shadow_regs_area)(tid, buf, 0, offset, size);
         fi_reg_flip_or_leave_registers(&tData, buf, offset, size);
