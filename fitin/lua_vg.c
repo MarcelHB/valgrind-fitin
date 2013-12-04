@@ -465,12 +465,24 @@ extern char* vg_fgets(char *str, int num, FILE *f) {
 /* We know that Lua uses this only once for LUA_NUMBER_FMT = %.14g */
 extern int vg_fprintf(FILE *f, const char *format, ...) {
     va_list args;
+    vg_FILE *vgf = (vg_FILE*)f;
     char buf[512]; /* Should be sufficient for Lua's case. */
-    va_start(args, format);
-    VG_(vsprintf)((HChar*)&buf, format, args);
-    va_end(args);
 
-    return vg_fwrite(&buf, VG_(strlen)((HChar*)&buf), 1, f);
+    if(VG_(strcmp)(format, "%.14g") == 0) {
+        va_start(args, format);
+        VG_(vsprintf)((HChar*)&buf, format, args);
+        va_end(args);
+
+        Int result = vg_fwrite(&buf, VG_(strlen)((HChar*)&buf), 1, f);
+        /* Expected to return -1 on errors. */
+        if(vgf->state_bits & 2) {
+            return -1;
+        } else {
+            return result;
+        }
+    } else {
+        return 0;
+    }
 }
 
 extern int vg_fread(void *ptr, size_t size, size_t count, FILE* f) {
