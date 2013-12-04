@@ -362,6 +362,13 @@ static void fi_post_clo_init(void) {
 #ifdef FITIN_WITH_LUA
     if(tData.lua_script != NULL) {
         init_lua();
+        
+        if(tData.available_callbacks & 1) {
+            lua_getglobal(tData.lua, "before_start");
+            if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
+                VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+            }
+        }
     } else {
         exit_for_invalid_lua();
     }
@@ -724,6 +731,12 @@ static void fi_fini(Int exitcode) {
     }
 
 #ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 2) {
+        lua_getglobal(tData.lua, "after_end");
+        if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+    }
     lua_close(tData.lua);
 #endif
 
