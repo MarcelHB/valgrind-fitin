@@ -300,6 +300,7 @@ static void exit_for_invalid_lua(void) {
 /* --------------------------------------------------------------------------*/
 static void init_lua(void) {
 		tData.lua = luaL_newstate();
+    luaopen_base(tData.lua);
 		if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
 				exit_for_invalid_lua();
 		}
