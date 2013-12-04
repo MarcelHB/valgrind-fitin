@@ -306,6 +306,12 @@ static void exit_for_invalid_lua(void) {
 static void init_lua(void) {
     tData.lua = luaL_newstate();
     luaopen_base(tData.lua);
+    luaopen_string(tData.lua);
+    luaopen_table(tData.lua);
+    luaopen_math(tData.lua);
+    luaopen_io(tData.lua);
+    luaopen_bit32(tData.lua);
+    luaopen_os(tData.lua);
     if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
         exit_for_invalid_lua();
     }
