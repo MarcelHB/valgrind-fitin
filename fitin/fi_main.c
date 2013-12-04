@@ -117,9 +117,9 @@ static void initTData(void) {
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
 #ifdef FITIN_WITH_LUA
-		tData.lua_script = NULL;
-		tData.lua = NULL;
-		tData.available_callbacks = 0;
+    tData.lua_script = NULL;
+    tData.lua = NULL;
+    tData.available_callbacks = 0;
 #endif
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
@@ -224,13 +224,13 @@ static inline void incrInst(void) {
  */
 /* --------------------------------------------------------------------------*/
 static Bool fi_process_cmd_line_option(const HChar *arg) {
-		const HChar* tmp_string = NULL;
+    const HChar* tmp_string = NULL;
 
     if VG_STR_CLO(arg, "--fnname", tmp_string) {
-				tData.filtstr = (HChar*) tmp_string;
+        tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTFUNC;
     } else if VG_STR_CLO(arg, "--include", tmp_string) {
-				tData.filtstr = (HChar*) tmp_string;
+        tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTINCL;
     } else if VG_INT_CLO(arg, "--mod-load-time", tData.modMemLoadTime) {}
     else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
@@ -239,9 +239,9 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
     else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
 #ifdef FITIN_WITH_LUA 
-		else if VG_STR_CLO(arg, "--control-script", tmp_string) {
-				tData.lua_script = (HChar*) tmp_string;
-		}
+    else if VG_STR_CLO(arg, "--control-script", tmp_string) {
+        tData.lua_script = (HChar*) tmp_string;
+    }
 #endif
     else {
         return False;
@@ -261,8 +261,8 @@ static void fi_print_usage(void) {
         "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
         "                              origin.\n"
 #ifdef FITIN_WITH_LUA
-				"    --control-script=<path>   A control script written in Lua.       \n"
-				"                              Contains control callbacks.            \n"
+        "    --control-script=<path>   A control script written in Lua.       \n"
+        "                              Contains control callbacks.            \n"
 #else
         "    --fnname=<name>           Monitor instructions in functon <name> \n"
         "                              [Main].\n"
@@ -288,42 +288,48 @@ static void fi_print_debug_usage(void) {
 #ifdef FITIN_WITH_LUA
 /* --------------------------------------------------------------------------*/
 static const HChar* testable_lua_functions[] = {
-		"before_start"
+    "after_end",
+    "before_start",
+    "flip_value",
+    "monitor_address",
+    "next_block",
+    "treat_superblock"
 };
 
 /* --------------------------------------------------------------------------*/
 static void exit_for_invalid_lua(void) {
-		VG_(printf)("Cannot launch FITIn without valid --control-script!\n");
-		VG_(exit)(1);
+    VG_(printf)("Cannot launch FITIn without valid --control-script!\n");
+    VG_(exit)(1);
 }
 
 /* --------------------------------------------------------------------------*/
 static void init_lua(void) {
-		tData.lua = luaL_newstate();
+    tData.lua = luaL_newstate();
     luaopen_base(tData.lua);
-		if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
-				exit_for_invalid_lua();
-		}
+    if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
+        exit_for_invalid_lua();
+    }
 
-		Int i = 0;
-		for(; i < sizeof(testable_lua_functions); ++i) {
-				lua_getglobal(tData.lua, testable_lua_functions[i]);
-				if(lua_isfunction(tData.lua, 1)) {
-						tData.available_callbacks |= 1 << i;
-				}
-				lua_remove(tData.lua, -1);
-		}
+    Int i = 0;
+    UInt cb_table_size = sizeof(testable_lua_functions) / sizeof(HChar*);
+    for(; i < cb_table_size; ++i) {
+        lua_getglobal(tData.lua, testable_lua_functions[i]);
+        if(lua_isfunction(tData.lua, -1)) {
+            tData.available_callbacks |= 1 << i;
+        }
+        lua_remove(tData.lua, -1);
+    }
 }
 #endif
 
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
 #ifdef FITIN_WITH_LUA
-		if(tData.lua_script != NULL) {
-				init_lua();
-		} else {
-				exit_for_invalid_lua();
-		}
+    if(tData.lua_script != NULL) {
+        init_lua();
+    } else {
+        exit_for_invalid_lua();
+    }
 #endif
 }
 
@@ -448,7 +454,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                            IRSB *sbIn,
                            VexGuestLayout *layout,
                            VexGuestExtents *vge,
-													 VexArchInfo *archInfo,
+                           VexArchInfo *archInfo,
                            IRType gWordTy, IRType hWordTy ) {
     IRSB      *sbOut;
     IRStmt    *st;
@@ -664,7 +670,7 @@ static void fi_fini(Int exitcode) {
     }
 
 #ifdef FITIN_WITH_LUA
-		lua_close(tData.lua);
+    lua_close(tData.lua);
 #endif
 
     VG_(printf)("[FITIn] Totals (of monitored code blocks)\n");
