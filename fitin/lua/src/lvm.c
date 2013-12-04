@@ -52,7 +52,12 @@ int luaV_tostring (lua_State *L, StkId obj) {
   else {
     char s[LUAI_MAXNUMBER2STR];
     lua_Number n = nvalue(obj);
+#ifdef FITIN_WITH_LUA
+    long cn = (long)n;
+    int l = lua_number2str(s, cn);
+#else
     int l = lua_number2str(s, n);
+#endif
     setsvalue2s(L, obj, luaS_newlstr(L, s, l));
     return 1;
   }

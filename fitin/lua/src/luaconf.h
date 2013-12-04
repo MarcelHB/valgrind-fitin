@@ -239,7 +239,7 @@
 #include <stdio.h>
 #ifdef FITIN_WITH_LUA
 #define luai_writestring(s,l)	lua_print(s)
-#define luai_writeline() lua_print("\n")	
+#define luai_writeline()	lua_print("\n")	
 #else
 #define luai_writestring(s,l)	fwrite((s), sizeof(char), (l), stdout)
 #define luai_writeline()	(luai_writestring("\n", 1), fflush(stdout))
@@ -252,7 +252,7 @@
 */
 #ifdef FITIN_WITH_LUA
 #define luai_writestringerror(s,p) \
-  (lua_print(s,p))
+	(lua_print(s,p))
 #else
 #define luai_writestringerror(s,p) \
 	(fprintf(stderr, (s), (p)), fflush(stderr))
@@ -436,7 +436,12 @@
 @@ LUAI_MAXNUMBER2STR is maximum size of previous conversion.
 */
 #define LUA_NUMBER_SCAN		"%lf"
+#ifdef FITIN_WITH_LUA
+/* On Valgrind, we cannot use "%.14g", not even %f or %e :| */
+#define LUA_NUMBER_FMT		"%ld"
+#else
 #define LUA_NUMBER_FMT		"%.14g"
+#endif
 #define lua_number2str(s,n)	sprintf((s), LUA_NUMBER_FMT, (n))
 #define LUAI_MAXNUMBER2STR	32 /* 16 digits, sign, point, and \0 */
 

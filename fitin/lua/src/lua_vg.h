@@ -177,7 +177,7 @@ extern char* vg_fgets(char*, int, FILE*);
 extern FILE* vg_fopen(const char*, const char*);
 #define fopen(f,m) vg_fopen(f,m)
 #define fopen64(f,m) vg_fopen(f,m)
-/* Works only for format "%.14g" */
+/* Works only for format "%ld" */
 extern int vg_fprintf(FILE*, const char*, ...);
 #define fprintf(f,ff,args...) vg_fprintf(f, ff, args)
 extern int vg_fread(void*, size_t, size_t, FILE*);
