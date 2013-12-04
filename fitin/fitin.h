@@ -58,10 +58,6 @@ typedef enum {
 
 // This is a data structure to store tool specific data.
 typedef struct _toolData {
-    // This is the current intruction Address during the 'static' analysis.
-    Addr instAddr;
-    // States, whether the current instruction is monitored ('static' analysis).
-    Bool monitoredInst;
     // Counter for memory loads.
     ULong loads;
     // A filtertype for the monitorable instructions.

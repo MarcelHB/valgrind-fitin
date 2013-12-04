@@ -102,8 +102,6 @@ static Int cmpMonitorable (const void *v1, const void *v2) {
 
 /* --------------------------------------------------------------------------*/
 static void initTData(void) {
-    tData.instAddr = (Addr)NULL;
-    tData.monitoredInst = False;
     tData.loads = 0;
     tData.filter = MT_FILTFUNC;
     tData.filtstr = (HChar*) "main";
@@ -182,8 +180,6 @@ static inline Bool instInInclude(Addr instAddr, char *incl) {
         return False;
     }
 
-    //check whether the dirname begins like the content of incl
-    //TODO: Is there a better way than comparing strings?
     retval =  !VG_(strncmp)(dirname, incl, VG_(strlen)(incl));
 
     return retval;
@@ -197,6 +193,38 @@ static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
     }
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 8) {
+        HChar fnname[MAX_STR_SIZE];
+        HChar filename[MAX_STR_SIZE];
+        HChar dirname[MAX_STR_SIZE];
+        UInt linenum = 0;
+        Bool diravail = False;
+
+        VG_(memset)(fnname, 0, MAX_STR_SIZE);
+        VG_(memset)(filename, 0, MAX_STR_SIZE);
+        VG_(memset)(dirname, 0, MAX_STR_SIZE);
+
+        VG_(get_fnname)(instAddr, fnname, sizeof(fnname));
+        VG_(get_filename_linenum)(instAddr, 
+                                  filename, MAX_STR_SIZE,
+                                  dirname, MAX_STR_SIZE, &diravail,
+                                  &linenum);
+        lua_getglobal(tData.lua, "treat_superblock");    
+        lua_pushinteger(tData.lua, instAddr);
+        lua_pushstring(tData.lua, fnname);
+        lua_pushstring(tData.lua, filename);
+        lua_pushstring(tData.lua, dirname);
+        lua_pushinteger(tData.lua, linenum);
+        if(lua_pcall(tData.lua, 5, 1, 0) == 0) {
+           return lua_toboolean(tData.lua, -1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+    } else {
+        return True;
+    }
+#else
     switch (tData.filter) {
         case MT_FILTFUNC:
             return instInFunc(instAddr, tData.filtstr);
@@ -206,6 +234,7 @@ static inline Bool monitorInst(Addr instAddr) {
             tl_assert(0);
             break;
     }
+#endif
 }
 
 /* A simple instruction counter. */
@@ -288,12 +317,12 @@ static void fi_print_debug_usage(void) {
 #ifdef FITIN_WITH_LUA
 /* --------------------------------------------------------------------------*/
 static const HChar* testable_lua_functions[] = {
-    "after_end",
     "before_start",
-    "flip_value",
-    "monitor_address",
+    "after_end",
     "next_block",
-    "treat_superblock"
+    "treat_superblock",
+    "monitor_address",
+    "flip_value"
 };
 
 /* --------------------------------------------------------------------------*/
@@ -368,10 +397,12 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
     state.size = state.original_size = size;
 
     // iterate over monitorables list
+#ifndef FITIN_WITH_LUA
     if(td->ignore_monitorables) {
         state.relevant = True;
         state.full_size = size;
     } else {
+#endif
         if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
             Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
@@ -380,7 +411,22 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
                 state.full_size = mon->monSize;
             }
         }
+#ifndef FITIN_WITH_LUA
     }
+#endif
+
+#ifdef FITIN_WITH_LUA
+    if(td->available_callbacks & 16) {
+        lua_getglobal(td->lua, "monitor_address");
+        lua_pushinteger(td->lua, dataAddr);
+        lua_pushboolean(td->lua, state.relevant);
+        if(lua_pcall(td->lua, 2, 1, 0) == 0) {
+            state.relevant = lua_toboolean(td->lua, -1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(td->lua, -1));
+        }
+    }
+#endif
 
     VG_(addToXA)(td->load_states, &state);
 
@@ -468,6 +514,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     IRDirty *di;
     int i;
     XArray *loads = NULL, *replacements = NULL;
+    Bool monitor_sb = False;
 
     /* We don't currently support this case. - Really? */
     if (gWordTy != hWordTy) {
@@ -511,8 +558,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         if(st->tag == Ist_IMark) {
-            tData.instAddr = st->Ist.IMark.addr;
-            tData.monitoredInst = monitorInst(tData.instAddr);
+            if(i == 0) {
+                monitor_sb = monitorInst(st->Ist.IMark.addr);
+            }
 
             /* Add the counter to every single IMark, no matter where. */
             argv = mkIRExprVec_0();
@@ -521,7 +569,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         /* Check for correct function. */
-        if(tData.monitoredInst) {
+        if(monitor_sb) {
             switch (st->tag) {
                 case Ist_Put:
                     /* PUTting something should not count as access. */
