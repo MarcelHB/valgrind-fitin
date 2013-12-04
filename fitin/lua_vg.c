@@ -8,6 +8,7 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_options.h"
 
+/* Configuration of the default "C" locale. */
 static struct lconv constant_lconv = {
     (char*) ".",
     (char*) "",
@@ -34,18 +35,21 @@ static struct lconv constant_lconv = {
     CHAR_MAX,
     CHAR_MAX
 };
-
 static const char *constant_lconv_name = "C";
 
+/* No error lookup, just provide default messages and codes. */
 static const char *generic_error_str = "Generic Error";
 static const int generic_error_code = 1;
 
+/* Global variable to hold the rand() seed value. */
 static int rseed = 1;
 
+/* Returns the address to immutable `generic_error_code`. */
 extern int* __errno_location(void) {
     return (int*)&generic_error_code;
 }
 
+/* A function to be used by Lua prints, shows up only in verbose mode. */
 extern void lua_print(const char *format, ...) {
     va_list args;
 
@@ -97,8 +101,8 @@ extern int vg_toupper(int n) {
     }
 }
 
+/* Taken from GNU C Library, stdlib/rand_r.c, LGPLv2.1+ */
 static int random(int seed) {
-  /* Taken from GNU C Library, stdlib/rand_r.c, LGPLv2.1+ */
   unsigned int next = rseed;
   int result;
 
@@ -166,9 +170,10 @@ extern time_t vg_mktime(struct tm *t) {
 }
 
 extern double vg_pow(double b, double e) {
-    int inte = (int)e, i = 1;
+    long inte = (long)e, i = 1;
     double result = b;
 
+    /* Some faster lookups. */
     if(inte == 1) {
         return b;
     } else if(inte == 0) {
@@ -204,10 +209,16 @@ extern char* vg_strerror(int num) {
     return (char*)generic_error_str;
 }
 
+/* Temp-file counter. */
 static unsigned int tmp_files = 0;
 static const char *path_sep = "/";
 
 extern char* vg_tmpnam(char *path) {
+    /* As Valgrind needs to know which files to lock, we get a clean
+     * directory where temp-files can be managed. But to match the stdlib,
+     * we use this directory and append increasing numbers to the path as
+     * filenames to avoid conflicts for reasonable use cases.
+     */
     HChar *dir = (HChar*)VG_(tmpdir)();
     HChar buf[12];
 
@@ -219,6 +230,7 @@ extern char* vg_tmpnam(char *path) {
         size_t name_length = VG_(strlen)(buf);
         size_t total_length = dir_length + name_length + 1;
 
+        /* Construct something like "/tmp/dir" + "/" + "N" */
         dir = VG_(realloc)("fiti.lua.temppath", dir, dir_length + name_length + 2);
         VG_(memcpy)(dir + dir_length, path_sep, 1);
         VG_(memcpy)(dir + dir_length + 1, buf, name_length);
@@ -243,6 +255,7 @@ extern FILE* vg_tmpfile(void) {
     return vg_fopen(buf, "wb+");
 }
 
+/* This one will simply output the ms passed so far, ignoring `format`. */
 extern size_t vg_strftime(void *ptr, size_t size, char *format, struct tm *_tm) {
     HChar buf[50];
     VG_(memset)(buf, 0, sizeof(buf));
@@ -266,6 +279,8 @@ extern time_t vg_time(time_t *t) {
     return rtime;
 }
 
+
+/* Helper to translate open-modes into request bits. */
 void vg_fopen_solve_flag_bits(vg_FILE*, const char*);
 void vg_fopen_solve_flag_bits(vg_FILE* vgf, const char *mode) {
     UChar bits = 0;
@@ -303,6 +318,7 @@ void vg_fopen_solve_flag_bits(vg_FILE* vgf, const char *mode) {
     vgf->mode_bits = bits;
 }
 
+/* Helper to translate our request-bits into fcntl-open flags. */
 Int vg_fopen_translate_flag_bits(UChar);
 Int vg_fopen_translate_flag_bits(UChar fbits) {
     Int sysc_bits = 0;
@@ -324,6 +340,7 @@ Int vg_fopen_translate_flag_bits(UChar fbits) {
     return sysc_bits;
 }
 
+/* Helper to retrieve the file size for a given `path`. */
 Long vg_fgetsize(const char*);
 Long vg_fgetsize(const char *path) {
     struct vg_stat vgs;
@@ -343,6 +360,7 @@ extern FILE* vg_fopen(const char* path, const char *mode) {
     vg_fopen_solve_flag_bits(vgf, mode);
     Int flag_bits = vg_fopen_translate_flag_bits(vgf->mode_bits);
 
+    /* 0644 should be Ok, I don't know the defaults. */
     vgf->fd = VG_(fd_open)(path, flag_bits, 0644);
     vgf->size = vg_fgetsize(path);
     vgf->state_bits = 0;
@@ -385,10 +403,12 @@ void vg_maybe_set_eof(vg_FILE *vgf) {
     }
 }
 
+/* As long as there is no real buffer, do nothing here. */
 extern int vg_fflush(FILE *f) {
     return 0;
 }
 
+/* Helper methods to check I/O permissions according to open-mode. */
 Int vg_allowed_to_read(vg_FILE*);
 Int vg_allowed_to_read(vg_FILE* vgf) {
     return vgf->mode_bits & 1;
@@ -422,6 +442,7 @@ extern char* vg_fgets(char *str, int num, FILE *f) {
         return str;
     }
 
+    /* Cheap wrap-around check. */
     ULong future_pos = vgf->pos + length;
     tl_assert(future_pos >= vgf->pos);
     tl_assert(future_pos >= length);
@@ -442,11 +463,13 @@ extern char* vg_fgets(char *str, int num, FILE *f) {
         vg_maybe_set_eof(vgf);
         vgf->append_pos = vgf->pos++;
 
+        /* Nasty Windows text files with "\r\n" */
         if(buf == 0xD) {
             was_r = 1;
         } else if(buf == 0xA) {
             break;
         } else {
+            /* Reset '\r' */
             if(was_r) {
                 str[i-1] = '\r';
                 was_r = 0;
@@ -497,6 +520,7 @@ extern int vg_fread(void *ptr, size_t size, size_t count, FILE* f) {
         return 0;
     }
 
+    /* Cheap wrap-around checks. */
     ULong total = size * count;
     tl_assert(total >= size);
     tl_assert(total >= count);
@@ -593,6 +617,7 @@ extern size_t vg_fwrite(void *ptr, size_t size, size_t count, FILE *f) {
         vgf->pos = vgf->append_pos;
     }
 
+    /* Cheap wrap-around checks. */
     ULong total = size * count;
     tl_assert(total >= size);
     tl_assert(total >= count);
@@ -625,6 +650,7 @@ extern int vg_getc(FILE* f) {
     }
 }
 
+/* As there are no consumption buffers here, pos-- should be Ok. */
 extern int vg_ungetc(int c, FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
     vgf->pos--;
