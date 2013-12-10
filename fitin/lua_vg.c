@@ -188,23 +188,22 @@ extern time_t vg_mktime(struct tm *t) {
 }
 
 /* --------------------------------------------------------------------------*/
-extern double vg_pow(double b, double e) {
-    long inte = (long)e, i = 1;
-    double result = b;
+extern long vg_pow(long b, long e) {
+    long i = 1, result = b;
 
     /* Some faster lookups. */
-    if(inte == 1) {
+    if(e == 1) {
         return b;
-    } else if(inte == 0) {
+    } else if(e == 0) {
         return 1;
-    } else if(b == 2.0d && inte > 0) {
-        return 1 << inte;
+    } else if(b == 2 && e > 0) {
+        return 1 << e;
     } else if(e > 0) {
-        for(; i <= inte; ++i) {
+        for(; i <= e; ++i) {
             result *= b;
         }
     } else {
-        for(; i <= inte; ++i) {
+        for(; i <= e; ++i) {
             result /= b;
         }
     }
@@ -618,12 +617,12 @@ extern int vg_fscanf(FILE *f, const char *format, ...) {
     HChar *fbuffer = VG_(calloc)("fitin.lua.fscanf", left, 1);
 
     /* We should only have this case in Lua. */
-    if(VG_(strcmp)(format, "%lf") == 0) {
+    if(VG_(strcmp)(format, "%ld") == 0) {
         vg_fread(fbuffer, left, 1, f);
-        double dbl = VG_(strtod)(fbuffer, NULL);
+        Long l = VG_(strtoll10)(fbuffer, NULL);
         va_start(args, format);
-        double *addr = va_arg(args, double*);
-        *addr = dbl;
+        long *addr = va_arg(args, long*);
+        *addr = l;
         va_end(args);
     } else {
         VG_(free)(fbuffer);

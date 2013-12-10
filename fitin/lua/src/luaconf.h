@@ -443,12 +443,13 @@
 @@ lua_number2str converts a number to a string.
 @@ LUAI_MAXNUMBER2STR is maximum size of previous conversion.
 */
-#define LUA_NUMBER_SCAN		"%lf"
 #ifdef FITIN_WITH_LUA
 /* On Valgrind, we cannot use "%.14g", not even %f or %e :| */
 #define LUA_NUMBER_FMT		"%ld"
+#define LUA_NUMBER_SCAN		"%ld"
 #else
 #define LUA_NUMBER_FMT		"%.14g"
+#define LUA_NUMBER_SCAN		"%lf"
 #endif
 #define lua_number2str(s,n)	sprintf((s), LUA_NUMBER_FMT, (n))
 #define LUAI_MAXNUMBER2STR	32 /* 16 digits, sign, point, and \0 */

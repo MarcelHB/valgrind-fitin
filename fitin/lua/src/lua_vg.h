@@ -102,7 +102,7 @@ extern int* __errno_location(void);
 #define floor(d) ((long long) d)
 #define ceil(d) (floor(d)+1)
 /* This function will convert the exponent to a `long`! */
-extern double vg_pow(double, double);
+extern long vg_pow(long, long);
 #define pow(b,e) vg_pow(b,e)
 #define ldexp(r,e) (r * pow(2,e))
 
@@ -184,7 +184,7 @@ extern int vg_fread(void*, size_t, size_t, FILE*);
 #define fread(p,s,c,f) vg_fread(p,s,c,f)
 extern FILE* vg_freopen(const char*, const char*, FILE*);
 #define freopen(p,m,f) vg_freopen(p,m,f)
-/* Works only for format "%lf" */
+/* Works only for format "%ld" */
 extern int vg_fscanf(FILE*, const char* f, ...);
 #define fscanf(f,ff,args...) vg_fscanf(f,ff,args)
 extern int vg_fseek(FILE*, long int, int);
