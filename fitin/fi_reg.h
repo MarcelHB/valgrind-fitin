@@ -70,6 +70,13 @@ typedef struct {
     IRTemp new_temp;
 } ReplaceData;
 
+typedef struct {
+    toolData *td;
+    LoadState *state;
+    enum { MEMORY, NORMAL } type;
+    void *data;
+} LuaFlipPassData;
+
 /* Helper function to properly add a LoadData into the appropriate list. */
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
@@ -151,5 +158,11 @@ Bool fi_reg_instrument_store(toolData *tool_data,
                              IRExpr **expr,
                              IRExpr *address,
                              IRSB *sb);
+
+#ifdef FITIN_WITH_LUA
+/* This function can be directly called from inside Lua on `flip_value`. It
+   has to pass the given pointer `data` and an array of bit patterns. */
+int lua_persist_flip(lua_State *lua);
+#endif
 
 #endif

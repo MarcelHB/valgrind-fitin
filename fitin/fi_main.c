@@ -344,12 +344,19 @@ static void init_lua(void) {
     luaopen_io(tData.lua);
     luaopen_bit32(tData.lua);
     luaopen_os(tData.lua);
+
+    /* Register `lua_persist_flip` to be callable. */
+    lua_pushcfunction(tData.lua, lua_persist_flip);
+    lua_setglobal(tData.lua, "persist_flip");
+
+    /* Attempt to open control-script file. */
     if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
         exit_for_invalid_lua();
     }
 
     Int i = 0;
     UInt cb_table_size = sizeof(testable_lua_functions) / sizeof(HChar*);
+    /* Check for available functions and set bits. */
     for(; i < cb_table_size; ++i) {
         lua_getglobal(tData.lua, testable_lua_functions[i]);
         if(lua_isfunction(tData.lua, -1)) {

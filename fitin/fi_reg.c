@@ -54,7 +54,16 @@ static void analyze_dirty_and_add_modifiers(toolData *tool_data,
                                             Int nFx,
                                             IRSB *sb);
 
+static inline void flip_bits(void *data,
+                             SizeT size,
+                             ULong *bit_table,
+                             SizeT table_size);
+
 static UChar flip_byte_at_bit(UChar byte, UChar bit);
+
+static void flip_long_bits(ULong *dest, ULong pattern);
+
+static void flip_byte_bits(UChar *dest, UChar pattern);
 
 static void flip_or_leave(toolData *tool_data, void *data, LoadState *state);
 
@@ -461,6 +470,66 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
     }
 }
 
+/* --------------------------------------------------------------------------*/
+static inline ULong* get_lua_table(lua_State *lua, SizeT *size);
+static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
+    Int i = 0;
+    *size = 0;
+
+    if(!lua_istable(lua,-1)) {
+        return NULL;
+    }
+
+    lua_pushnil(lua);
+    for(; lua_next(lua, -2); ++i) {
+        lua_pop(lua, 1);
+    }
+
+    if(i > 0) {
+        ULong *table = (ULong*) VG_(calloc)("fitin.lua.get_lua_table", i, sizeof(ULong));
+        lua_pushnil(lua);
+        *size = i * sizeof(ULong);
+        i = 0;
+
+        for(; lua_next(lua, -2); ++i) {
+            tl_assert(lua_isnumber(lua, -2));
+            table[i] = lua_tointeger(lua, -2);
+            lua_pop(lua, 1);
+        }
+
+        return table;
+    } else {
+        return NULL;
+    }
+}
+
+#ifdef FITIN_WITH_LUA
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
+int lua_persist_flip(lua_State *lua) {
+    LuaFlipPassData *data = (LuaFlipPassData*) lua_touserdata(lua, -2);
+    LoadState *state = data->state;
+
+    if(data != NULL && data->type != MEMORY && lua_istable(lua, -1)) {
+        SizeT size = 0;
+        ULong* table = get_lua_table(lua, &size); 
+
+        if(size > 0) {
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP (secondary)! Data at %p\n", data);
+            }
+    
+            flip_bits((void*) state->location, state->full_size, table, size);
+        }
+
+        VG_(free)(table);
+    }
+
+    return 0;
+}
+#endif
+
+
 /* The method that is performing the bit-flip if applicable. It takes place 
    inside of `data` and will be returned. */
 /* --------------------------------------------------------------------------*/
@@ -470,6 +539,27 @@ static inline void flip_or_leave(toolData *tool_data,
 
     if(state->relevant) {
         tool_data->monLoadCnt++;
+
+#ifdef FITIN_WITH_LUA
+        if(tool_data->available_callbacks & 32) {
+            LuaFlipPassData lua_data = { tool_data, state, NORMAL, data };
+            lua_getglobal(tool_data->lua, "flip_value");
+            lua_pushlightuserdata(tool_data->lua, &lua_data);
+            lua_pushinteger(tool_data->lua, state->location);
+            lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+                SizeT size = 0;
+                ULong *table = get_lua_table(tool_data->lua, &size); 
+                if(size > 0) {
+                    flip_bits(data, state->size, table, size);
+                }
+                VG_(free)(table);
+                lua_pop(tool_data->lua, 1);
+            } else {
+                VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
+            }
+        }
+#else 
         if(!tool_data->goldenRun &&
             tool_data->modMemLoadTime == tool_data->monLoadCnt) {
             UChar *addr = get_destination_address(data, state->size, tool_data->modBit);
@@ -490,6 +580,7 @@ static inline void flip_or_leave(toolData *tool_data,
                                     addr != NULL);
             tool_data->injections++;
         }
+#endif
     }
 }
 
@@ -546,6 +637,38 @@ static inline UChar* get_destination_address(void *a, SizeT size, UChar bit) {
 /* --------------------------------------------------------------------------*/
 static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
     return byte ^ (1 << bit); 
+}
+
+/* --------------------------------------------------------------------------*/
+static inline void flip_long_bits(ULong *dest, ULong pattern) {
+    *dest = *dest ^ pattern;
+}
+
+/* --------------------------------------------------------------------------*/
+static inline void flip_byte_bits(UChar *dest, UChar pattern) {
+    *dest = *dest ^ pattern;
+}
+
+/* --------------------------------------------------------------------------*/
+static inline void flip_bits(void *data,
+                             SizeT size,
+                             ULong *bit_table,
+                             SizeT table_size) {
+
+    SizeT min_size = size <= table_size ? size : table_size;
+    Int longs = min_size / sizeof(ULong), i = 0;
+
+    for(; i < longs; ++i) {
+        flip_long_bits(((ULong*)data) + i, bit_table[i]);
+    }
+
+    Int long_offset = longs * sizeof(ULong), left = min_size - long_offset;
+    i = 0;
+
+    for(; i < left; ++i) {
+        Int idx = long_offset + i;
+        flip_byte_bits(((UChar*)data) + idx, ((UChar*)bit_table)[idx]);
+    }
 }
 
 /* This method is to be used by the dirty flipper methods if operating on
