@@ -242,11 +242,13 @@ static inline Bool monitorInst(Addr instAddr) {
 /* --------------------------------------------------------------------------*/
 static inline void incrInst(void) {
     tData.instCnt++;
+
+#ifndef FITIN_WITH_LUA
     if(tData.instLmt && tData.instCnt >= tData.instLmt) {
         fi_fini(EXIT_STOPPED);
         VG_(exit)(0);
     }
-
+#endif
 }
 
 /* FITIn uses several command line options.
@@ -848,8 +850,16 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
 #ifdef FITIN_WITH_LUA
     if(tData.available_callbacks & 4) {
         lua_getglobal(tData.lua, "next_block");
-        if(lua_pcall(tData.lua, 0, 1, 0) == 0) {
-            tData.runtime_active = lua_toboolean(tData.lua, -1);
+        lua_pushinteger(tData.lua, tData.instCnt);
+        if(lua_pcall(tData.lua, 1, 1, 0) == 0) {
+            Int result = lua_tointeger(tData.lua, -1);
+
+            if(result == 1) {
+                tData.runtime_active = False;
+            } else if(result == 2) {
+                fi_fini(EXIT_STOPPED);
+                VG_(exit)(0);
+            }
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
         }
