@@ -601,7 +601,7 @@ extern long int vg_ftell(FILE *f) {
     return vgf->pos;
 }
 
-extern size_t vg_fwrite(void *ptr, size_t size, size_t count, FILE *f) {
+extern size_t vg_fwrite(const void *ptr, size_t size, size_t count, FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
 
     if(!vg_allowed_to_write(vgf)) {

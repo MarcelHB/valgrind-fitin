@@ -40,8 +40,8 @@ extern char* vg_strerror(int);
 #define strerror(n) vg_strerror(n)
 
 /* Jump functions, used by Lua's `throw`. */
-#define longjmp(e,v) VG_MINIMAL_LONGJMP((ULong*) e)
-#define setjmp(e) VG_MINIMAL_SETJMP((ULong*) e)
+#define longjmp(e,v) VG_MINIMAL_LONGJMP((UInt*) e)
+#define setjmp(e) VG_MINIMAL_SETJMP((UInt*) e)
 
 /* Locale functions
  *
@@ -193,7 +193,7 @@ extern long int vg_ftell(FILE*);
 #define ftell(f) vg_ftell(f)
 extern int vg_ungetc(int, FILE*);
 #define ungetc(c,f) vg_ungetc(c,f)
-extern size_t vg_fwrite(void*, size_t, size_t, FILE*);
+extern size_t vg_fwrite(const void*, size_t, size_t, FILE*);
 #define fwrite(p,s,c,f) vg_fwrite(p,s,c,f)
 extern int vg_getc(FILE*);
 #define getc(f) vg_getc(f)
