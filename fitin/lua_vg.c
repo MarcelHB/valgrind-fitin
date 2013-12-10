@@ -45,11 +45,13 @@ static const int generic_error_code = 1;
 static int rseed = 1;
 
 /* Returns the address to immutable `generic_error_code`. */
+/* --------------------------------------------------------------------------*/
 extern int* __errno_location(void) {
     return (int*)&generic_error_code;
 }
 
 /* A function to be used by Lua prints, shows up only in verbose mode. */
+/* --------------------------------------------------------------------------*/
 extern void lua_print(const char *format, ...) {
     va_list args;
 
@@ -61,38 +63,47 @@ extern void lua_print(const char *format, ...) {
 }
 
 /* isX(n) is only ASCII aware. */
+/* --------------------------------------------------------------------------*/
 extern int vg_islower(int n) {
     return (n >= 0x61 && n <= 0x7A);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_isupper(int n) {
     return (n >= 0x41 && n <= 0x5A);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_isalpha(int n) {
     return vg_islower(n) || vg_isupper(n);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_iscntrl(int n) {
     return (n >= 0 && n <= 0x1F) || n == 0x7F;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_isalnum(int n) {
     return VG_(isdigit)(n) || vg_isalpha(n);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_isgraph(int n) {
     return !vg_iscntrl(n) && !VG_(isspace)(n);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_ispunct(int n) {
     return vg_isgraph(n) && !vg_isalnum(n);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_isxdigit(int n) {
     return VG_(isdigit)(n) || (n >= 0x41 && n <= 0x46);
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_toupper(int n) {
     if(vg_isalpha(n) && vg_islower(n)) {
         return n - 0x20;
@@ -102,6 +113,7 @@ extern int vg_toupper(int n) {
 }
 
 /* Taken from GNU C Library, stdlib/rand_r.c, LGPLv2.1+ */
+/* --------------------------------------------------------------------------*/
 static int random(int seed) {
   unsigned int next = rseed;
   int result;
@@ -125,15 +137,18 @@ static int random(int seed) {
   return result;
 }
 
+/* --------------------------------------------------------------------------*/
 extern struct lconv* vg_localeconv(void) {
     return &constant_lconv;
 }
 
+/* --------------------------------------------------------------------------*/
 extern double vg_difftime(time_t end, time_t begin) {
     /* As we only have relative ms values, we can be as simple as that. */
     return (double)(end - begin);
 }
 
+/* --------------------------------------------------------------------------*/
 extern const void* vg_memchr(const void *p, int value, size_t num) {
     unsigned char c = (unsigned char) value;
     int i = 0;
@@ -149,6 +164,7 @@ extern const void* vg_memchr(const void *p, int value, size_t num) {
     return NULL;
 }
 
+/* --------------------------------------------------------------------------*/
 extern struct tm* vg_gmtime(const time_t *t) {
     struct tm *_tm = (struct tm*)VG_(calloc)("fitin.lua.gmtime", 1, sizeof(struct tm));
     time_t *as_time_t = (time_t*)_tm;
@@ -157,6 +173,7 @@ extern struct tm* vg_gmtime(const time_t *t) {
     return _tm;
 }
 
+/* --------------------------------------------------------------------------*/
 extern struct tm* vg_localtime(time_t t) {
     struct tm *_tm = (struct tm*)VG_(calloc)("fitin.lua.localtime", 1, sizeof(struct tm));
     time_t *as_time_t = (time_t*)_tm;
@@ -165,10 +182,12 @@ extern struct tm* vg_localtime(time_t t) {
     return _tm;
 }
 
+/* --------------------------------------------------------------------------*/
 extern time_t vg_mktime(struct tm *t) {
     return *((time_t*)t);
 }
 
+/* --------------------------------------------------------------------------*/
 extern double vg_pow(double b, double e) {
     long inte = (long)e, i = 1;
     double result = b;
@@ -193,18 +212,22 @@ extern double vg_pow(double b, double e) {
     return result;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_rand(void) {
     return random(rseed);
 }
 
+/* --------------------------------------------------------------------------*/
 extern char* vg_setlocale(int category, const char* name) {
     return (char*)&constant_lconv_name;
 }
 
+/* --------------------------------------------------------------------------*/
 extern void vg_srand(unsigned int n) {
     rseed = n;
 }
 
+/* --------------------------------------------------------------------------*/
 extern char* vg_strerror(int num) {
     return (char*)generic_error_str;
 }
@@ -213,6 +236,7 @@ extern char* vg_strerror(int num) {
 static unsigned int tmp_files = 0;
 static const char *path_sep = "/";
 
+/* --------------------------------------------------------------------------*/
 extern char* vg_tmpnam(char *path) {
     /* As Valgrind needs to know which files to lock, we get a clean
      * directory where temp-files can be managed. But to match the stdlib,
@@ -248,6 +272,7 @@ extern char* vg_tmpnam(char *path) {
     }
 }
 
+/* --------------------------------------------------------------------------*/
 extern FILE* vg_tmpfile(void) {
     char buf[1024];
     VG_(memset)(buf, 0, sizeof(buf));
@@ -256,6 +281,7 @@ extern FILE* vg_tmpfile(void) {
 }
 
 /* This one will simply output the ms passed so far, ignoring `format`. */
+/* --------------------------------------------------------------------------*/
 extern size_t vg_strftime(void *ptr, size_t size, char *format, struct tm *_tm) {
     HChar buf[50];
     VG_(memset)(buf, 0, sizeof(buf));
@@ -270,6 +296,7 @@ extern size_t vg_strftime(void *ptr, size_t size, char *format, struct tm *_tm) 
     }
 }
 
+/* --------------------------------------------------------------------------*/
 extern time_t vg_time(time_t *t) {
     time_t rtime = (time_t)VG_(read_millisecond_timer)();
     if(t != NULL) {
@@ -281,6 +308,7 @@ extern time_t vg_time(time_t *t) {
 
 
 /* Helper to translate open-modes into request bits. */
+/* --------------------------------------------------------------------------*/
 void vg_fopen_solve_flag_bits(vg_FILE*, const char*);
 void vg_fopen_solve_flag_bits(vg_FILE* vgf, const char *mode) {
     UChar bits = 0;
@@ -319,6 +347,7 @@ void vg_fopen_solve_flag_bits(vg_FILE* vgf, const char *mode) {
 }
 
 /* Helper to translate our request-bits into fcntl-open flags. */
+/* --------------------------------------------------------------------------*/
 Int vg_fopen_translate_flag_bits(UChar);
 Int vg_fopen_translate_flag_bits(UChar fbits) {
     Int sysc_bits = 0;
@@ -341,6 +370,7 @@ Int vg_fopen_translate_flag_bits(UChar fbits) {
 }
 
 /* Helper to retrieve the file size for a given `path`. */
+/* --------------------------------------------------------------------------*/
 Long vg_fgetsize(const char*);
 Long vg_fgetsize(const char *path) {
     struct vg_stat vgs;
@@ -355,6 +385,7 @@ Long vg_fgetsize(const char *path) {
     return vgs.size;
 }
 
+/* --------------------------------------------------------------------------*/
 extern FILE* vg_fopen(const char* path, const char *mode) {
     vg_FILE *vgf = VG_(malloc)("fitin.lua.fopen", sizeof(vg_FILE));
     vg_fopen_solve_flag_bits(vgf, mode);
@@ -379,6 +410,7 @@ extern FILE* vg_fopen(const char* path, const char *mode) {
     return (FILE*)vgf;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_fclose(FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
     VG_(close)(vgf->fd);
@@ -386,16 +418,19 @@ extern int vg_fclose(FILE *f) {
     return 0;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_feof(FILE* f) {
     vg_FILE *vgf = (vg_FILE*)f;
     return vgf->state_bits & 1;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_ferror(FILE* f) {
     vg_FILE *vgf = (vg_FILE*)f;
     return vgf->state_bits & 2;
 }
 
+/* --------------------------------------------------------------------------*/
 void vg_maybe_set_eof(vg_FILE*);
 void vg_maybe_set_eof(vg_FILE *vgf) {
     if(vgf->pos > vgf->size) {
@@ -404,26 +439,31 @@ void vg_maybe_set_eof(vg_FILE *vgf) {
 }
 
 /* As long as there is no real buffer, do nothing here. */
+/* --------------------------------------------------------------------------*/
 extern int vg_fflush(FILE *f) {
     return 0;
 }
 
 /* Helper methods to check I/O permissions according to open-mode. */
+/* --------------------------------------------------------------------------*/
 Int vg_allowed_to_read(vg_FILE*);
 Int vg_allowed_to_read(vg_FILE* vgf) {
     return vgf->mode_bits & 1;
 }
 
+/* --------------------------------------------------------------------------*/
 Int vg_allowed_to_write(vg_FILE*);
 Int vg_allowed_to_write(vg_FILE* vgf) {
     return vgf->mode_bits & 2;
 }
 
+/* --------------------------------------------------------------------------*/
 void vg_set_error(vg_FILE*);
 void vg_set_error(vg_FILE *vgf) {
     vgf->state_bits |= 2;
 }
 
+/* --------------------------------------------------------------------------*/
 extern char* vg_fgets(char *str, int num, FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
     Int i = 0;
@@ -486,6 +526,7 @@ extern char* vg_fgets(char *str, int num, FILE *f) {
 }
 
 /* We know that Lua uses this only once for LUA_NUMBER_FMT = %ld */
+/* --------------------------------------------------------------------------*/
 extern int vg_fprintf(FILE *f, const char *format, ...) {
     va_list args;
     vg_FILE *vgf = (vg_FILE*)f;
@@ -508,6 +549,7 @@ extern int vg_fprintf(FILE *f, const char *format, ...) {
     }
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_fread(void *ptr, size_t size, size_t count, FILE* f) {
     vg_FILE *vgf = (vg_FILE*)f;
 
@@ -539,6 +581,7 @@ extern int vg_fread(void *ptr, size_t size, size_t count, FILE* f) {
     return res;
 }
 
+/* --------------------------------------------------------------------------*/
 extern FILE* vg_freopen(const char *path, const char *mode, FILE* f) {
     vg_FILE *vgf = (vg_FILE*)f;
     vg_fopen_solve_flag_bits(vgf, mode);
@@ -562,6 +605,7 @@ extern FILE* vg_freopen(const char *path, const char *mode, FILE* f) {
     return (FILE*)vgf;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_fscanf(FILE *f, const char *format, ...) {
     va_list args;
     vg_FILE *vgf = (vg_FILE*)f;
@@ -590,17 +634,20 @@ extern int vg_fscanf(FILE *f, const char *format, ...) {
     return 1;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_fseek(FILE *f, long int offset, int origin) {
     vg_FILE *vgf = (vg_FILE*)f;
     vgf->pos = VG_(lseek)(vgf->fd, offset, origin);
     return 0;
 }
 
+/* --------------------------------------------------------------------------*/
 extern long int vg_ftell(FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
     return vgf->pos;
 }
 
+/* --------------------------------------------------------------------------*/
 extern size_t vg_fwrite(const void *ptr, size_t size, size_t count, FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
 
@@ -638,6 +685,7 @@ extern size_t vg_fwrite(const void *ptr, size_t size, size_t count, FILE *f) {
     return res;
 }
 
+/* --------------------------------------------------------------------------*/
 extern int vg_getc(FILE* f) {
     vg_FILE *vgf = (vg_FILE*)f;
     Int result = 0;
@@ -651,6 +699,7 @@ extern int vg_getc(FILE* f) {
 }
 
 /* As there are no consumption buffers here, pos-- should be Ok. */
+/* --------------------------------------------------------------------------*/
 extern int vg_ungetc(int c, FILE *f) {
     vg_FILE *vgf = (vg_FILE*)f;
     vgf->pos--;
