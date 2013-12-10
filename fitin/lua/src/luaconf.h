@@ -420,13 +420,21 @@
 */
 
 #define LUA_NUMBER_DOUBLE
+#ifdef FITIN_WITH_LUA
+#define LUA_NUMBER	long
+#else
 #define LUA_NUMBER	double
+#endif
 
 /*
 @@ LUAI_UACNUMBER is the result of an 'usual argument conversion'
 @* over a number.
 */
+#ifdef FITIN_WITH_LUA
+#define LUAI_UACNUMBER	long
+#else
 #define LUAI_UACNUMBER	double
+#endif
 
 
 /*

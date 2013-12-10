@@ -40,8 +40,8 @@ extern char* vg_strerror(int);
 #define strerror(n) vg_strerror(n)
 
 /* Jump functions, used by Lua's `throw`. */
-#define longjmp(e,v) VG_MINIMAL_LONGJMP((UInt*) e)
-#define setjmp(e) VG_MINIMAL_SETJMP((UInt*) e)
+#define longjmp(e,v) VG_MINIMAL_LONGJMP((ULong*) e)
+#define setjmp(e) VG_MINIMAL_SETJMP((ULong*) e)
 
 /* Locale functions
  *
