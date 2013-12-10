@@ -67,7 +67,7 @@ extern double vg_difftime(time_t, time_t);
 #define difftime(e,b) vg_difftime(e,b)
 extern struct tm* vg_gmtime(const time_t*);
 #define gmtime(t) vg_gmtime(t)
-extern struct tm* vg_localtime(time_t t);
+extern struct tm* vg_localtime(const time_t*);
 #define localtime(t) vg_localtime(t)
 extern time_t vg_mktime(struct tm*);
 #define mktime(tm) vg_mktime(tm)

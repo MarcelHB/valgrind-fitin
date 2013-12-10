@@ -174,10 +174,10 @@ extern struct tm* vg_gmtime(const time_t *t) {
 }
 
 /* --------------------------------------------------------------------------*/
-extern struct tm* vg_localtime(time_t t) {
+extern struct tm* vg_localtime(const time_t *t) {
     struct tm *_tm = (struct tm*)VG_(calloc)("fitin.lua.localtime", 1, sizeof(struct tm));
     time_t *as_time_t = (time_t*)_tm;
-    *as_time_t = t;
+    *as_time_t = *t;
 
     return _tm;
 }
