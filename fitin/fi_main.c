@@ -335,16 +335,27 @@ static void exit_for_invalid_lua(void) {
 }
 
 /* --------------------------------------------------------------------------*/
+static const luaL_Reg fitin_lualibs[] = {
+    {"_G", luaopen_base},
+    {LUA_LOADLIBNAME, luaopen_package},
+    {LUA_TABLIBNAME, luaopen_table},
+    {LUA_IOLIBNAME, luaopen_io},
+    {LUA_OSLIBNAME, luaopen_os},
+    {LUA_STRLIBNAME, luaopen_string},
+    {LUA_BITLIBNAME, luaopen_bit32},
+    {LUA_MATHLIBNAME, luaopen_math},
+    {NULL, NULL}
+};
+
+/* --------------------------------------------------------------------------*/
 static void init_lua(void) {
     tData.lua = luaL_newstate();
-    luaopen_base(tData.lua);
-    luaopen_string(tData.lua);
-    luaopen_table(tData.lua);
-    luaopen_math(tData.lua);
-    luaopen_io(tData.lua);
-    luaopen_bit32(tData.lua);
-    luaopen_os(tData.lua);
-
+    const luaL_Reg *lib = NULL;
+    for (lib = fitin_lualibs; lib->func; lib++) {
+        luaL_requiref(tData.lua, lib->name, lib->func, 1);
+        lua_pop(tData.lua, 1); 
+    }
+    
     /* Register `lua_persist_flip` to be callable. */
     lua_pushcfunction(tData.lua, lua_persist_flip);
     lua_setglobal(tData.lua, "persist_flip");
