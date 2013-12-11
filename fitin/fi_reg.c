@@ -470,6 +470,10 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(toolData *tool
     }
 }
 
+#ifdef FITIN_WITH_LUA
+/* Helper function to extract Lua table contents into an array being returned.
+   Here, we expect `lua` to have a table on top of its stack when called. The 
+   extracted number of ULongs is written into `size`. */
 /* --------------------------------------------------------------------------*/
 static inline ULong* get_lua_table(lua_State *lua, SizeT *size);
 static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
@@ -480,6 +484,7 @@ static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
         return NULL;
     }
 
+    /* We need to count before iterating. */
     lua_pushnil(lua);
     for(; lua_next(lua, -2); ++i) {
         lua_pop(lua, 1);
@@ -492,8 +497,8 @@ static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
         i = 0;
 
         for(; lua_next(lua, -2); ++i) {
-            tl_assert(lua_isnumber(lua, -2));
-            table[i] = lua_tointeger(lua, -2);
+            tl_assert(lua_isnumber(lua, -1));
+            table[i] = lua_tointeger(lua, -1);
             lua_pop(lua, 1);
         }
 
@@ -503,7 +508,6 @@ static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
     }
 }
 
-#ifdef FITIN_WITH_LUA
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 int lua_persist_flip(lua_State *lua) {
@@ -551,6 +555,10 @@ static inline void flip_or_leave(toolData *tool_data,
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
                 if(size > 0) {
+                    if(VG_(clo_verbosity) > 1) {
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) state->location);
+                    }
+
                     flip_bits(data, state->size, table, size);
                 }
                 VG_(free)(table);
@@ -656,16 +664,18 @@ static inline void flip_bits(void *data,
                              SizeT table_size) {
 
     SizeT min_size = size <= table_size ? size : table_size;
-    Int longs = min_size / sizeof(ULong), i = 0;
+    Int longs = min_size / sizeof(ULong), i = longs - 1;
 
-    for(; i < longs; ++i) {
+    /* Flip everything that can be aligned into a whole register. */
+    for(; i >= 0; --i) {
         flip_long_bits(((ULong*)data) + i, bit_table[i]);
     }
 
     Int long_offset = longs * sizeof(ULong), left = min_size - long_offset;
-    i = 0;
+    i = left - 1;
 
-    for(; i < left; ++i) {
+    /* Flip remaining bytes. */
+    for(; i >= 0; --i) {
         Int idx = long_offset + i;
         flip_byte_bits(((UChar*)data) + idx, ((UChar*)bit_table)[idx]);
     }
