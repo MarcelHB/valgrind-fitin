@@ -177,14 +177,14 @@ extern char* vg_fgets(char*, int, FILE*);
 extern FILE* vg_fopen(const char*, const char*);
 #define fopen(f,m) vg_fopen(f,m)
 #define fopen64(f,m) vg_fopen(f,m)
-/* Works only for format "%ld" */
+/* Works only for format "%lld" */
 extern int vg_fprintf(FILE*, const char*, ...);
 #define fprintf(f,ff,args...) vg_fprintf(f, ff, args)
 extern int vg_fread(void*, size_t, size_t, FILE*);
 #define fread(p,s,c,f) vg_fread(p,s,c,f)
 extern FILE* vg_freopen(const char*, const char*, FILE*);
 #define freopen(p,m,f) vg_freopen(p,m,f)
-/* Works only for format "%ld" */
+/* Works only for format "%lld" */
 extern int vg_fscanf(FILE*, const char* f, ...);
 #define fscanf(f,ff,args...) vg_fscanf(f,ff,args)
 extern int vg_fseek(FILE*, long int, int);

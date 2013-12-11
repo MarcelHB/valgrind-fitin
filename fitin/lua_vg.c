@@ -524,14 +524,14 @@ extern char* vg_fgets(char *str, int num, FILE *f) {
     return str;
 }
 
-/* We know that Lua uses this only once for LUA_NUMBER_FMT = %ld */
+/* We know that Lua uses this only once for LUA_NUMBER_FMT = %lld */
 /* --------------------------------------------------------------------------*/
 extern int vg_fprintf(FILE *f, const char *format, ...) {
     va_list args;
     vg_FILE *vgf = (vg_FILE*)f;
     char buf[512]; /* Should be sufficient for Lua's case. */
 
-    if(VG_(strcmp)(format, "%ld") == 0) {
+    if(VG_(strcmp)(format, "%lld") == 0) {
         va_start(args, format);
         VG_(vsprintf)((HChar*)&buf, format, args);
         va_end(args);
@@ -617,7 +617,7 @@ extern int vg_fscanf(FILE *f, const char *format, ...) {
     HChar *fbuffer = VG_(calloc)("fitin.lua.fscanf", left, 1);
 
     /* We should only have this case in Lua. */
-    if(VG_(strcmp)(format, "%ld") == 0) {
+    if(VG_(strcmp)(format, "%lld") == 0) {
         vg_fread(fbuffer, left, 1, f);
         Long l = VG_(strtoll10)(fbuffer, NULL);
         va_start(args, format);

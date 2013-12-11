@@ -421,7 +421,7 @@
 
 #define LUA_NUMBER_DOUBLE
 #ifdef FITIN_WITH_LUA
-#define LUA_NUMBER	long
+#define LUA_NUMBER	Long
 #else
 #define LUA_NUMBER	double
 #endif
@@ -431,7 +431,7 @@
 @* over a number.
 */
 #ifdef FITIN_WITH_LUA
-#define LUAI_UACNUMBER	long
+#define LUAI_UACNUMBER	Long
 #else
 #define LUAI_UACNUMBER	double
 #endif
@@ -445,8 +445,8 @@
 */
 #ifdef FITIN_WITH_LUA
 /* On Valgrind, we cannot use "%.14g", not even %f or %e :| */
-#define LUA_NUMBER_FMT		"%ld"
-#define LUA_NUMBER_SCAN		"%ld"
+#define LUA_NUMBER_FMT		"%lld"
+#define LUA_NUMBER_SCAN		"%lld"
 #else
 #define LUA_NUMBER_FMT		"%.14g"
 #define LUA_NUMBER_SCAN		"%lf"
