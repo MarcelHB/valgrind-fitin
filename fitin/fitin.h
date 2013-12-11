@@ -106,6 +106,8 @@ typedef struct _toolData {
 		/* Available callbacks. */
 		/* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? */
 		ULong available_callbacks;
+    /* 64 bit mode? */
+    Bool is64;
 #endif
 } toolData;
 
