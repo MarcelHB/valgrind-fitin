@@ -73,8 +73,8 @@ typedef struct {
 typedef struct {
     toolData *td;
     LoadState *state;
-    enum { MEMORY, NORMAL } type;
-    void *data;
+    enum { MEMORY, REG_TABLE, NORMAL } type;
+    UInt offset;
 } LuaFlipPassData;
 
 /* Helper function to properly add a LoadData into the appropriate list. */

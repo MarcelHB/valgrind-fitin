@@ -512,18 +512,32 @@ static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
 /* --------------------------------------------------------------------------*/
 int lua_persist_flip(lua_State *lua) {
     LuaFlipPassData *data = (LuaFlipPassData*) lua_touserdata(lua, -2);
-    LoadState *state = data->state;
 
     if(data != NULL && data->type != MEMORY && lua_istable(lua, -1)) {
         SizeT size = 0;
         ULong* table = get_lua_table(lua, &size); 
 
         if(size > 0) {
-            if(VG_(clo_verbosity) > 1) {
-                VG_(printf)("[FITIn] FLIP (secondary)! Data at %p\n", data);
+            void* origin = NULL; 
+
+            /* NORMAL: we have a load state */
+            if(data->type == NORMAL) {
+                LoadState *state = data->state;
+                origin = (void*) state->location;
+
+                flip_bits(origin, state->full_size, table, size);
+            /* REG_TABLE: we have the offset where to look up size + origin */
+            } else if(data->type == REG_TABLE) {
+                UInt offset = data->offset, full_offset = offset * 2 + 1;
+                toolData *td = data->td;
+                origin = (void*) td->reg_origins[offset];
+
+                flip_bits(origin, td->reg_load_sizes[full_offset], table, size);
             }
-    
-            flip_bits((void*) state->location, state->full_size, table, size);
+
+            if(VG_(clo_verbosity) > 1) {
+                VG_(printf)("[FITIn] FLIP (secondary)! Data at %p\n", origin);
+            }
         }
 
         VG_(free)(table);
@@ -546,22 +560,25 @@ static inline void flip_or_leave(toolData *tool_data,
 
 #ifdef FITIN_WITH_LUA
         if(tool_data->available_callbacks & 32) {
-            LuaFlipPassData lua_data = { tool_data, state, NORMAL, data };
+            LuaFlipPassData lua_data = { tool_data, state, NORMAL };
             lua_getglobal(tool_data->lua, "flip_value");
             lua_pushlightuserdata(tool_data->lua, &lua_data);
             lua_pushinteger(tool_data->lua, state->location);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+
             if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
+
                 if(size > 0) {
                     if(VG_(clo_verbosity) > 1) {
                         VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) state->location);
                     }
 
                     flip_bits(data, state->size, table, size);
+                    VG_(free)(table);
                 }
-                VG_(free)(table);
+
                 lua_pop(tool_data->lua, 1);
             } else {
                 VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
@@ -609,6 +626,33 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
+#ifdef FITIN_WITH_LUA
+    if(tool_data->available_callbacks & 32) {
+        LuaFlipPassData lua_data = { NULL, NULL, MEMORY };
+        lua_getglobal(tool_data->lua, "flip_value");
+        lua_pushlightuserdata(tool_data->lua, &lua_data);
+        lua_pushinteger(tool_data->lua, (ULong) a);
+        lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+
+        if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+            SizeT table_size = 0;
+            ULong *table = get_lua_table(tool_data->lua, &table_size); 
+
+            if(table_size > 0) {
+                if(VG_(clo_verbosity) > 1) {
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) a);
+                }
+
+                flip_bits((void*) a, size, table, table_size);
+                VG_(free)(table);
+            }
+
+            lua_pop(tool_data->lua, 1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
+        }
+    }
+#else
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
         UChar *addr = get_destination_address((void*) a, size, tool_data->modBit);
@@ -623,6 +667,7 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
 
         tool_data->injections++;
     }
+#endif
 }
 
 /* Helper to extract a byte-precise address. This can be used to do the actual
@@ -1402,6 +1447,35 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
+#ifdef FITIN_WITH_LUA
+      void *origin = (void*) tool_data->reg_origins[offset];
+
+      if(tool_data->available_callbacks & 32) {
+            LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset };
+            lua_getglobal(tool_data->lua, "flip_value");
+            lua_pushlightuserdata(tool_data->lua, &lua_data);
+            lua_pushinteger(tool_data->lua, (ULong) origin);
+            lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+
+            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+                SizeT table_size = 0;
+                ULong *table = get_lua_table(tool_data->lua, &table_size); 
+
+                if(table_size > 0) {
+                    if(VG_(clo_verbosity) > 1) {
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) origin);
+                    }
+
+                    flip_bits(buffer, size, table, table_size);
+                    VG_(free)(table);
+                }
+
+                lua_pop(tool_data->lua, 1);
+            } else {
+                VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
+            }
+        }
+#else
     if(!tool_data->goldenRun &&
         tool_data->modMemLoadTime == tool_data->monLoadCnt) {
         Int full_size_offset = offset * 2 + 1;
@@ -1424,4 +1498,5 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
 
         tool_data->injections++;
     }
+#endif
 }
