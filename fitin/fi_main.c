@@ -288,14 +288,14 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
 /* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
-#ifdef FITIN_WITH_LUA
-        "    --control-script=<path>   A control script written in Lua.       \n"
-        "                              Contains control callbacks.            \n"
-#else
         "    --golden-run=[yes|no]     States whether this is the golden run. \n"
         "                              The golden run just monitors, no modify\n"
         "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
         "                              origin.\n"
+#ifdef FITIN_WITH_LUA
+        "    --control-script=<path>   A control script written in Lua.       \n"
+        "                              Contains control callbacks.            \n"
+#else
         "    --fnname=<name>           Monitor instructions in functon <name> \n"
         "                              [Main].\n"
         "    --include=<dir>           Monitor instructions which have debug  \n"
@@ -563,7 +563,6 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         initialize_register_lists(layout->total_sizeB);
         tData.register_lists_loaded = True;
         tData.gWordTy = gWordTy;
-        tData.is64 = (gWordTy == Ity_I64);
     }
 
     loads = VG_(newXA)(VG_(malloc), 
