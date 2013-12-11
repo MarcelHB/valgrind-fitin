@@ -1,0 +1,108 @@
+{
+    "tests": [{
+        "title": "Flips a variable on n-th access.",
+        "files": ["sample1.c"],
+        "output": "sample1",
+        "expected": "36"
+    },{
+        "title": "On --all-addresses=yes, it flips without macros.",
+        "files": ["sample1a.c"],
+        "output": "sample1a",
+        "expected": "7"
+    },{
+        "title": "Flipping causes different branching.",
+        "files": ["sample2.c"],
+        "output": "sample2",
+        "expected": "a LT 1"
+    },{
+        "title": "Writes a flipped value back to memory.",
+        "files": ["sample3.c"],
+        "output": "sample3",
+        "expected": "3"
+    },{
+        "title": "Tracks a register tunneled load (x86-test only).",
+        "files": ["sample4.c"],
+        "output": "sample4",
+        "expected": "2"
+    },{
+        "title": "Ignores re-assigning as access.",
+        "files": ["sample5.c"],
+        "output": "sample5",
+        "expected": "2 3"
+    },{
+        "title": "MyDhrystone2, not crashing.",
+        "files": ["dhry_fitin/dhry_1.c", "dhry_fitin/dhry_2.c"],
+        "output": "dhry_fitin",
+        "cflags": "-g3",
+        "ldflags": "",
+        "expected": null
+    },{
+        "title": "Deals with repeating variables on stack.",
+        "files": ["sample6.c"],
+        "output": "sample6",
+        "cflags": "-g",
+        "expected": "4"
+    },{
+        "title": "Flips on memory syscall with offset (Linux only)",
+        "files": ["sample7.c"],
+        "output": "sample7",
+        "expected": "4"
+    },{
+        "title": "Handles Valgrind's dirty helpers (x86-test only).",
+        "files": ["sample8.c"],
+        "output": "sample8",
+        "expected": "1"
+    },{
+        "title": "Does not flip if bit is outside of partial load.",
+        "files": ["sample9.c"],
+        "output": "sample9",
+        "expected": "1"
+    },{
+        "title": "... but does flip in memory on persistency request.",
+        "files": ["sample9.c"],
+        "output": "sample9",
+        "script": "sample9a.lua",
+        "expected": "16385"
+    },{
+        "title": "Flips memory if used by a Valgrind dirty helper (x86-test only)",
+        "files": ["sample10.c"],
+        "output": "sample10",
+        "expected": "0.0"
+    },{
+        "title": "Flips on register syscall with offset (Linux only)",
+        "files": ["sample11.c"],
+        "output": "sample11",
+        "expected": "012"
+    },{
+        "title": "ASM written test to demonstrate work of replacing algo. (x86-test only)",
+        "files": ["sample12.c"],
+        "output": "sample12",
+        "expected": "3 9"
+    },{
+        "title": "Handles non-integer data types.",
+        "files": ["sample13.c"],
+        "output": "sample13",
+        "expected": "3.75"
+    },{
+        "title": "Can correctly branch on flipped double",
+        "files": ["sample14.c"],
+        "output": "sample14",
+        "expected": "a LE 0"
+    },{
+        "title": "Persist float flip on --persist-flip=yes",
+        "files": ["sample15.c"],
+        "output": "sample15",
+        "expected": "-1.25"
+    },{
+        "title": "Works with floats on function calls (compiler-noisy!).",
+        "files": ["sample16.c"],
+        "output": "sample16",
+        "cflags": "-g",
+        "expected": "-0.25"
+    },{
+        "title": "ASM written test to demonstrate work of replacing algo. (AMD64-test only)",
+        "files": ["sample17.c"], 
+        "output": "sample17",
+        "expected": "1.50 3.00"
+    }]
+}
