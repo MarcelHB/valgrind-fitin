@@ -9,6 +9,7 @@
         "title": "On --all-addresses=yes, it flips without macros.",
         "files": ["sample1a.c"],
         "output": "sample1a",
+        "script": "sample1a.lua",
         "expected": "7",
         "vg_params": "--mod-bit=3 --mod-load-time=4 --all-addresses=yes"
     },{
