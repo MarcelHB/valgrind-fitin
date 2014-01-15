@@ -565,8 +565,9 @@ static inline void flip_or_leave(toolData *tool_data,
             lua_pushlightuserdata(tool_data->lua, &lua_data);
             lua_pushinteger(tool_data->lua, state->location);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+            lua_pushinteger(tool_data->lua, (ULong) state->original_size);
 
-            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
 
@@ -633,8 +634,9 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
         lua_pushlightuserdata(tool_data->lua, &lua_data);
         lua_pushinteger(tool_data->lua, (ULong) a);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+        lua_pushinteger(tool_data->lua, (ULong) size);
 
-        if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
@@ -1456,8 +1458,9 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
             lua_pushlightuserdata(tool_data->lua, &lua_data);
             lua_pushinteger(tool_data->lua, (ULong) origin);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
+            lua_pushinteger(tool_data->lua, (ULong) size);
 
-            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
+            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
                 SizeT table_size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &table_size); 
 

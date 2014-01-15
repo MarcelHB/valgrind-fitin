@@ -10,7 +10,7 @@ treat_superblock = function(address, fnname, filename, dirname, linenum)
   end
 end
 
-flip_value = function(state, address, counter)
+flip_value = function(state, address, counter, size)
   if counter == 4 then
     return {8}
   else
