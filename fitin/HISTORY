@@ -6,7 +6,7 @@ January 2014
 November 2013
 =============
 
-* Adds support any data types, especially floating point data
+* Adds support for any data types, especially floating point data
 * Updates Valgrind to v3.9
 * Proof-of-concept for Fortran code
 
