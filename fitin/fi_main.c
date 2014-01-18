@@ -429,10 +429,6 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
       return state_list_size;
     }
 
-    if(VG_(clo_verbosity) > 1) {
-        VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
-    }
-
     // iterate over monitorables list
 #ifndef FITIN_WITH_LUA
     if(td->ignore_monitorables) {
