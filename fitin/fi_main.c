@@ -567,6 +567,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         initialize_register_lists(layout->total_sizeB);
         tData.register_lists_loaded = True;
         tData.gWordTy = gWordTy;
+    } else {
+        /* Reset all entries. */
+        VG_(memset)(tData.reg_temp_occupancies, 0xFF, sizeof(IRTemp) * layout->total_sizeB);
     }
 
     loads = VG_(newXA)(VG_(malloc), 
