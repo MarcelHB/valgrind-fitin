@@ -222,6 +222,7 @@ static inline Bool monitorInst(Addr instAddr) {
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
         }
+        lua_pop(tData.lua, 1);
     } else {
         return True;
     }
@@ -462,6 +463,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(td->lua, -1));
         }
+        lua_pop(td->lua, 1);
     }
 #endif
 
@@ -891,6 +893,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
         }
+        lua_pop(tData.lua, 1);
     }
 #endif
 }
