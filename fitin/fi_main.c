@@ -693,16 +693,19 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                                                                sbOut);
                         }
                     }
-
                     /* Check for reads from registers. */
                     fi_reg_add_pre_dirty_modifiers(&tData, st->Ist.Dirty.details, sbOut);
                     break;
                 case Ist_CAS:                    
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->addr);
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->expdLo);
-                    INSTRUMENT_ACCESS(st->Ist.CAS.details->expdHi);
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->dataLo);
-                    INSTRUMENT_ACCESS(st->Ist.CAS.details->dataHi);
+                    if(st->Ist.CAS.details->expdHi != NULL) {
+                        INSTRUMENT_ACCESS(st->Ist.CAS.details->expdHi);
+                    }
+                    if(st->Ist.CAS.details->dataHi != NULL) {
+                        INSTRUMENT_ACCESS(st->Ist.CAS.details->dataHi);
+                    }
                     break;
                 case Ist_LLSC:                
                     INSTRUMENT_ACCESS(st->Ist.LLSC.addr);
