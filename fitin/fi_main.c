@@ -381,6 +381,9 @@ static void init_lua(void) {
 
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
+    if(VG_(clo_verbosity) > 1) {
+        VG_(needs_var_info)();
+    }
 #ifdef FITIN_WITH_LUA
     if(tData.lua_script != NULL) {
         init_lua();
@@ -959,7 +962,6 @@ static void fi_pre_clo_init(void) {
                                     fi_print_usage,
                                     fi_print_debug_usage);
     VG_(needs_client_requests)(fi_handle_client_request);
-    VG_(needs_var_info)();
     initTData();
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 
