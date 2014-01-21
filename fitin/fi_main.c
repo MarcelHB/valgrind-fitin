@@ -552,7 +552,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     IRDirty *di;
     int i;
     XArray *loads = NULL, *replacements = NULL;
-    Bool monitor_sb = False;
+    Bool monitor_sb = False, monitoring_checked = False;
 
     if(!tData.runtime_active) {
         return sbIn;
@@ -603,8 +603,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         if(st->tag == Ist_IMark) {
-            if(i == 0) {
+            if(!monitoring_checked) {
                 monitor_sb = monitorInst(st->Ist.IMark.addr);
+                monitoring_checked = True;
             }
 
             /* Add the counter to every single IMark, no matter where. */
