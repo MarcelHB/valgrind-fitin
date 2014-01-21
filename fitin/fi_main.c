@@ -959,6 +959,7 @@ static void fi_pre_clo_init(void) {
                                     fi_print_usage,
                                     fi_print_debug_usage);
     VG_(needs_client_requests)(fi_handle_client_request);
+    VG_(needs_var_info)();
     initTData();
     VG_(track_die_mem_stack)(fi_stop_using_mem_stack);
 

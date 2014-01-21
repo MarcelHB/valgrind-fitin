@@ -35,6 +35,7 @@
 #include "pub_tool_libcassert.h"
 #include "pub_tool_libcprint.h"
 #include "pub_tool_options.h"
+#include "pub_tool_debuginfo.h"
 
 /* ------- Protoypes, please scroll down for more info  --------*/
 static void add_replacement(XArray *list, IRTemp old, IRTemp new);
@@ -573,7 +574,15 @@ static inline void flip_or_leave(toolData *tool_data,
 
                 if(size > 0) {
                     if(VG_(clo_verbosity) > 1) {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) state->location);
+                        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
+                        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
+                        if (VG_(get_data_description)(dname1v, dname2v, state->location)) {
+                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) state->location, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
+                        } else {
+                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) state->location);
+                        }
+                        VG_(deleteXA)(dname1v);
+                        VG_(deleteXA)(dname2v);
                     }
 
                     flip_bits(data, state->size, table, size);
@@ -642,7 +651,15 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
 
             if(table_size > 0) {
                 if(VG_(clo_verbosity) > 1) {
-                    VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) a);
+                    XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
+                    XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
+                    if (VG_(get_data_description)(dname1v, dname2v, a)) {
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) a, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
+                    } else {
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) a);
+                    }
+                    VG_(deleteXA)(dname1v);
+                    VG_(deleteXA)(dname2v);
                 }
 
                 flip_bits((void*) a, size, table, table_size);
@@ -1466,7 +1483,15 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
 
                 if(table_size > 0) {
                     if(VG_(clo_verbosity) > 1) {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) origin);
+                        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
+                        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
+                        if (VG_(get_data_description)(dname1v, dname2v, (Addr) origin)) {
+                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) origin, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
+                        } else {
+                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) origin);
+                        }
+                        VG_(deleteXA)(dname1v);
+                        VG_(deleteXA)(dname2v);
                     }
 
                     flip_bits(buffer, size, table, table_size);
