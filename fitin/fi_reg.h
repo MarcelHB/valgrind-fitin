@@ -163,6 +163,11 @@ Bool fi_reg_instrument_store(toolData *tool_data,
 /* This function can be directly called from inside Lua on `flip_value`. It
    has to pass the given pointer `data` and an array of bit patterns. */
 int lua_persist_flip(lua_State *lua);
+
+/* From virtually any callback, the user can call this method with
+   address, pattern, size to manually trigger bit flips outside of given
+   addresses. */
+int lua_flip_on_memory(lua_State *lua);
 #endif
 
 #endif

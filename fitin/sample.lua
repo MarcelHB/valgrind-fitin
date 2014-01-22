@@ -178,3 +178,15 @@ end
 -- 		* any other: continue (if 1 has never been returned so far).
 --
 -- 	If missing: always continues.
+
+-- Can be called directly from virtually any callback:
+--
+-- flip_on_memory
+--
+--   * address:integer: The address where you want the bit flip to take place.
+--   * size:integer: The size of the data that you want to flip.
+--   * pattern:array. Bit-patterns as if returned by `flip_value`.
+--
+-- No return value.
+--
+-- WARNING: Invalid addresses or ranges may cause crashes.

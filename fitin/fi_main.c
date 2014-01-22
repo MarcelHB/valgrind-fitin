@@ -361,6 +361,9 @@ static void init_lua(void) {
     lua_pushcfunction(tData.lua, lua_persist_flip);
     lua_setglobal(tData.lua, "persist_flip");
 
+    lua_pushcfunction(tData.lua, lua_flip_on_memory);
+    lua_setglobal(tData.lua, "flip_on_memory");
+
     /* Attempt to open control-script file. */
     if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
         exit_for_invalid_lua();
@@ -424,12 +427,12 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
 
     /* Discard-note if no longer supposed to run. */
     if(!td->runtime_active) {
-      state.full_size = size;
-      state.relevant = False;
+        state.full_size = size;
+        state.relevant = False;
 
-      VG_(addToXA)(td->load_states, &state);
+        VG_(addToXA)(td->load_states, &state);
 
-      return state_list_size;
+        return state_list_size;
     }
 
     // iterate over monitorables list

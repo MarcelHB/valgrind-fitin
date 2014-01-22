@@ -104,5 +104,10 @@
         "files": ["sample17.c"], 
         "output": "sample17",
         "expected": "1.50 3.00"
+    },{
+        "title": "Can manually flip bits elsewhere from inside a callback",
+        "files": ["sample18.c"],
+        "output": "sample18",
+        "expected": "c d"
     }]
 }

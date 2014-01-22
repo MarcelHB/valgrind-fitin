@@ -546,6 +546,22 @@ int lua_persist_flip(lua_State *lua) {
 
     return 0;
 }
+
+/* --------------------------------------------------------------------------*/
+int lua_flip_on_memory(lua_State *lua) {
+    if(lua_istable(lua, -1)) {
+        SizeT table_size = 0;
+        ULong *table = get_lua_table(lua, &table_size);
+        void* address = (void*) lua_tonumber(lua, -3);
+        SizeT size = (SizeT) lua_tonumber(lua, -2);
+
+        flip_bits(address, size, table, table_size);
+
+        VG_(free)(table);
+    }
+
+    return 0;
+}
 #endif
 
 
