@@ -264,6 +264,12 @@ static int io_tmpfile (lua_State *L) {
 
 
 static FILE *getiofile (lua_State *L, const char *findex) {
+#ifdef FITIN_WITH_LUA
+  if(strcmp(findex, IO_INPUT) == 0 || strcmp(findex, IO_OUTPUT) == 0) {
+     luaL_error(L, "standard %s file not available in FITIn-Lua", findex + strlen(IO_PREFIX));
+     return NULL;
+  }
+#endif
   LStream *p;
   lua_getfield(L, LUA_REGISTRYINDEX, findex);
   p = (LStream *)lua_touserdata(L, -1);
