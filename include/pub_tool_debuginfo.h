@@ -32,6 +32,7 @@
 #define __PUB_TOOL_DEBUGINFO_H
 
 #include "pub_tool_basics.h"   // VG_ macro
+#include "pub_tool_xarray.h"   // XArray
 
 /*====================================================================*/
 /*=== Obtaining debug information                                  ===*/
@@ -115,6 +116,38 @@ Bool VG_(get_data_description)(
         /*MOD*/ void* /* really, XArray* of HChar */ dname2v,
         Addr data_addr
      );
+
+typedef
+   struct {
+      HChar* name;  
+      UWord  typeR; 
+      HChar* fileName; 
+      Int    lineNo;
+   }
+   Vg_DiVariable;
+
+typedef
+   enum {
+      Vg_DebugInfoVarGlobal,
+      Vg_DebugInfoVarLocal
+   } Vg_DebugInfoVarType;
+
+typedef
+   struct {
+      Vg_DebugInfoVarType type;
+      Addr data_addr;
+      Vg_DiVariable var;
+      PtrdiffT offset;
+      PtrdiffT residual_offset;
+      XArray *described;
+      Int frameNo;
+      ThreadId tid;
+   }
+   Vg_DebugInfo;
+
+Bool VG_(get_data_description_di)(Vg_DebugInfo*, Addr data_addr);
+
+void VG_(delete_di)(Vg_DebugInfo*);
 
 /* Succeeds if the address is within a shared object or the main executable.
    It doesn't matter if debug info is present or not. */
