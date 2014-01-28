@@ -119,9 +119,9 @@ Bool VG_(get_data_description)(
 
 typedef
    struct {
-      HChar* name;  
-      UWord  typeR; 
-      HChar* fileName; 
+      HChar* name;
+      UWord  typeR;
+      HChar* fileName;
       Int    lineNo;
    }
    Vg_DiVariable;
