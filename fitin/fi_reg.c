@@ -564,6 +564,47 @@ int lua_flip_on_memory(lua_State *lua) {
 }
 #endif
 
+/* --------------------------------------------------------------------------*/
+static const HChar* var_key_strings[] = {
+  "address",
+  "size",
+  "name",
+  "file_name",
+  "line",
+  "global",
+  "offset"
+};
+
+/* --------------------------------------------------------------------------*/
+static inline void fill_variable_debug_table(Addr a, lua_State *l) {
+    if(VG_(clo_verbosity) > 1) {
+        Vg_DebugInfo *di = VG_(malloc)("fitin.flip.verbose", sizeof(Vg_DebugInfo));
+        if(VG_(get_data_description_di)(di, a)) {
+            lua_pushstring(l, var_key_strings[2]);
+            lua_pushstring(l, di->var.name);
+            lua_rawset(l, -3);
+
+            lua_pushstring(l, var_key_strings[3]);
+            lua_pushstring(l, di->var.fileName);
+            lua_rawset(l, -3);
+
+            lua_pushstring(l, var_key_strings[4]);
+            lua_pushinteger(l, di->var.lineNo);
+            lua_rawset(l, -3);
+
+            lua_pushstring(l, var_key_strings[5]);
+            lua_pushboolean(l, di->type == Vg_DebugInfoVarGlobal);
+            lua_rawset(l, -3);
+
+            lua_pushstring(l, var_key_strings[6]);
+            lua_pushinteger(l, (ULong) di->offset);
+            lua_rawset(l, -3);
+        }
+        VG_(delete_di)(di);
+        VG_(free)(di);
+    }
+}
+
 
 /* The method that is performing the bit-flip if applicable. It takes place 
    inside of `data` and will be returned. */
@@ -580,25 +621,26 @@ static inline void flip_or_leave(toolData *tool_data,
             LuaFlipPassData lua_data = { tool_data, state, NORMAL };
             lua_getglobal(tool_data->lua, "flip_value");
             lua_pushlightuserdata(tool_data->lua, &lua_data);
-            lua_pushinteger(tool_data->lua, state->location);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
-            lua_pushinteger(tool_data->lua, (ULong) state->original_size);
 
-            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+            lua_newtable(tool_data->lua);
+
+            lua_pushstring(tool_data->lua, var_key_strings[0]);
+            lua_pushinteger(tool_data->lua, state->location);
+            lua_rawset(tool_data->lua, -3);
+            lua_pushstring(tool_data->lua, var_key_strings[1]);
+            lua_pushinteger(tool_data->lua, (ULong) state->original_size);
+            lua_rawset(tool_data->lua, -3);
+
+            fill_variable_debug_table(state->location, tool_data->lua);
+
+            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
 
                 if(size > 0) {
                     if(VG_(clo_verbosity) > 1) {
-                        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                        if (VG_(get_data_description)(dname1v, dname2v, state->location)) {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) state->location, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
-                        } else {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) state->location);
-                        }
-                        VG_(deleteXA)(dname1v);
-                        VG_(deleteXA)(dname2v);
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) state->location);
                     }
 
                     flip_bits(data, state->size, table, size);
@@ -636,6 +678,7 @@ static inline void flip_or_leave(toolData *tool_data,
 }
 
 /* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
+                        VG_(free)(di);
    reads on `a` by `size` bytes. */
 /* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(toolData *tool_data,
@@ -657,25 +700,26 @@ inline void fi_reg_flip_or_leave_mem(toolData *tool_data, Addr a, SizeT size) {
         LuaFlipPassData lua_data = { NULL, NULL, MEMORY };
         lua_getglobal(tool_data->lua, "flip_value");
         lua_pushlightuserdata(tool_data->lua, &lua_data);
-        lua_pushinteger(tool_data->lua, (ULong) a);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
-        lua_pushinteger(tool_data->lua, (ULong) size);
 
-        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+        lua_newtable(tool_data->lua);
+
+        lua_pushstring(tool_data->lua, var_key_strings[0]);
+        lua_pushinteger(tool_data->lua, a);
+        lua_rawset(tool_data->lua, -3);
+        lua_pushstring(tool_data->lua, var_key_strings[1]);
+        lua_pushinteger(tool_data->lua, (ULong) size);
+        lua_rawset(tool_data->lua, -3);
+
+        fill_variable_debug_table(a, tool_data->lua);
+
+        if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
             if(table_size > 0) {
                 if(VG_(clo_verbosity) > 1) {
-                    XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                    XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                    if (VG_(get_data_description)(dname1v, dname2v, a)) {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) a, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
-                    } else {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) a);
-                    }
-                    VG_(deleteXA)(dname1v);
-                    VG_(deleteXA)(dname2v);
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", (void*) a);
                 }
 
                 flip_bits((void*) a, size, table, table_size);
@@ -1489,25 +1533,26 @@ static inline void flip_or_leave_on_buffer(toolData *tool_data,
             LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset };
             lua_getglobal(tool_data->lua, "flip_value");
             lua_pushlightuserdata(tool_data->lua, &lua_data);
-            lua_pushinteger(tool_data->lua, (ULong) origin);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
-            lua_pushinteger(tool_data->lua, (ULong) size);
 
-            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+            lua_newtable(tool_data->lua);
+
+            lua_pushstring(tool_data->lua, var_key_strings[0]);
+            lua_pushinteger(tool_data->lua, (Addr) origin);
+            lua_rawset(tool_data->lua, -3);
+            lua_pushstring(tool_data->lua, var_key_strings[1]);
+            lua_pushinteger(tool_data->lua, (ULong) size);
+            lua_rawset(tool_data->lua, -3);
+
+            fill_variable_debug_table((Addr) origin, tool_data->lua);
+
+            if(lua_pcall(tool_data->lua, 3, 1, 0) == 0) {
                 SizeT table_size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
                 if(table_size > 0) {
                     if(VG_(clo_verbosity) > 1) {
-                        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                        if (VG_(get_data_description)(dname1v, dname2v, (Addr) origin)) {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) origin, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
-                        } else {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) origin);
-                        }
-                        VG_(deleteXA)(dname1v);
-                        VG_(deleteXA)(dname2v);
+                        VG_(printf)("[FITIn] FLIP(S)! Data from %p\n", origin);
                     }
 
                     flip_bits(buffer, size, table, table_size);

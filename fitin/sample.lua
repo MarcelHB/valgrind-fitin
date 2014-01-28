@@ -92,9 +92,13 @@ end
 -- bit-patterns that select the bits to flip.
 --
 --   * state: Context data you cannot read or modify in Lua.
---   * address:integer: The address of the value to flip.
 --   * counter:integer: A global counter value for every call on `flip_value`.
---   * size:integer: The size of this value in byte.
+--   * variable:table: A struct containing additional information about
+--     the flipped target. Accessible keys are:
+--     * address:integer: The original address.
+--     * size:integer: The loaded size.
+--     * name:string: If verbose, debug, and global or local, the variable name.
+--     * line:integer: If verbose, debug, and global or local, the declaration line.
 --
 --  Expected return: array. You can use `{}` as an empty array to state
 --  "don't touch", e.g. for doing dry-runs. Otherwise, each element of
@@ -124,7 +128,7 @@ end
 --  register-ready value, `persist_flip` will write on later bytes in
 --  memory if the registered value is larger. Think of a C-struct.
 --
-flip_value = function(state, address, counter, size)
+flip_value = function(state, counter, variable)
 	-- on the third global access to selected variables
 	if counter == 3 then
 		-- bit-flip pattern (LSB->MSB): 000001000...

@@ -14,7 +14,7 @@ treat_superblock = function(address, fnname, filename, dirname, linenum)
   end
 end
 
-flip_value = function(state, address, counter, size)
+flip_value = function(state, counter, variable)
   if counter == 3 then
     return {32}
   else
