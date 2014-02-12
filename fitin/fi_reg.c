@@ -317,8 +317,6 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
             /* Adjust for retrieval size.*/
             new_load_data.ty = ty;
 
-            fi_reg_add_temp_load(loads, &new_load_data);
-
             /* We must inform the state list about the new type/size. */
             if(ty != load_data->ty) {
                 IRStmt *st;
@@ -336,6 +334,8 @@ inline Bool fi_reg_add_load_on_get(toolData *tool_data,
                 st = IRStmt_Dirty(dirty);
                 addStmtToIRSB(sb, st);
             }
+
+            fi_reg_add_temp_load(loads, &new_load_data);
         }
 
         return True;
