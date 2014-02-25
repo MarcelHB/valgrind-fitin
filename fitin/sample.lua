@@ -53,11 +53,11 @@
 --  If missing: Every super block is monitored.
 --
 treat_superblock = function(address, fnname, filename, dirname, linenum)
-	if fnname == "main" then
-		return true
-	else
-		return false
-	end
+  if fnname == "main" then
+    return true
+  else
+    return false
+  end
 end
 
 -- monitor_address:
@@ -78,11 +78,11 @@ end
 -- The following listing is only for demonstration.
 --
 monitor_address = function(address, annotated)
-	if annotated then
-		return true
-	else
-		return false
-	end
+  if annotated then
+    return true
+  else
+    return false
+  end
 end
 
 -- flip_value:
@@ -125,16 +125,16 @@ end
 --  memory if the registered value is larger. Think of a C-struct.
 --
 flip_value = function(state, address, counter, size)
-	-- on the third global access to selected variables
-	if counter == 3 then
-		-- bit-flip pattern (LSB->MSB): 000001000...
-		-- 
-		-- We could make the flip persistant this way:
-		-- persist_flip(state, {32})
-		return {32}
-	else
-		return {}
-	end
+  -- on the third global access to selected variables
+  if counter == 3 then
+    -- bit-flip pattern (LSB->MSB): 000001000...
+    -- 
+    -- We could make the flip persistant this way:
+    -- persist_flip(state, {32})
+    return {32}
+  else
+    return {}
+  end
 end
 
 -- before_start:
@@ -170,14 +170,14 @@ end
 --
 -- Expected return: integer.
 -- 
--- 		* 1: Stop FITIn. FITIn will not continue to ask you about new
--- 		     superblocks (skipping), monitorable variables (skipping) and will 
--- 		     not perform any further flips. This will also stop counting instructions
--- 		     that have not been detected so far. This can help improving the performance.
--- 		* 2: This will terminate the program and Valgrind-process immediately.
--- 		* any other: continue (if 1 has never been returned so far).
+--   * 1: Stop FITIn. FITIn will not continue to ask you about new
+--        superblocks (skipping), monitorable variables (skipping) and will 
+--        not perform any further flips. This will also stop counting instructions
+--        that have not been detected so far. This can help improving the performance.
+--   * 2: This will terminate the program and Valgrind-process immediately.
+--   * any other: continue (if 1 has never been returned so far).
 --
--- 	If missing: always continues.
+--   If missing: always continues.
 
 -- Can be called directly from virtually any callback:
 --
