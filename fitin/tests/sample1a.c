@@ -30,11 +30,12 @@
 #include "../../include/valgrind/fi_client.h"
 
 int main() {
-    int a = 0, b = 3, c = 12;
+    int a = 0, b = 6, c = 12, d = 0;
 
     a |= b;
     a |= c;
+    d = a & 1;
 
-    printf("%d\n", a);
+    printf("%d\n", d);
     return 0;
 }

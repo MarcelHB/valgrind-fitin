@@ -12,7 +12,7 @@ end
 
 flip_value = function(state, address, counter, size)
   if counter == 4 then
-    return {8}
+    return {1}
   else
     return {}
   end

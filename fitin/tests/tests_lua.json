@@ -8,7 +8,7 @@
         "title": "On --all-addresses=yes, it flips without macros.",
         "files": ["sample1a.c"],
         "output": "sample1a",
-        "expected": "7"
+        "expected": "1"
     },{
         "title": "Flipping causes different branching.",
         "files": ["sample2.c"],
