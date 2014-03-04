@@ -596,7 +596,8 @@ static inline Bool is_cast_unop(IROp op) {
 static inline Bool found_temp_use(XArray *queue,
                                   QueuedLoad *tuple,
                                   IRSB *sb,
-                                  Bool *pre_reg_markers) {
+                                  IRTemp *pre_reg_markers,
+                                  IRTemp original_tmp) {
     UInt i = tuple->i, d = 0;
     UInt *depth = &d;
     Bool found = False;
@@ -611,7 +612,7 @@ static inline Bool found_temp_use(XArray *queue,
             case Ist_WrTmp: {
                 IRExpr *expr = st->Ist.WrTmp.data;
                 if(expr->tag == Iex_Get) {
-                    if(pre_reg_markers[expr->Iex.Get.offset] == 1) {
+                    if(pre_reg_markers[expr->Iex.Get.offset*2] != IRTemp_INVALID) {
                         QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
                         VG_(addToXA)(queue, &q);
                     }
@@ -656,8 +657,12 @@ static inline Bool found_temp_use(XArray *queue,
                 Bool local_found = ACCESSES(st->Ist.Put.data);
                 IRExpr *expr = st->Ist.Put.data;
                 if(local_found && d == 1) {
-                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset, 1,
-                                sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp)));
+                    SizeT size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
+                    UInt j = 0;
+                    for(; j < size; ++j) {
+                        pre_reg_markers[(st->Ist.Put.offset + j) * 2] = expr->Iex.RdTmp.tmp;
+                        pre_reg_markers[(st->Ist.Put.offset + j) * 2 + 1] = original_tmp;
+                    }
                 } else {
                     SizeT size = 0;
                     if(expr->tag == Iex_Const) {
@@ -668,7 +673,7 @@ static inline Bool found_temp_use(XArray *queue,
                     } else {
                         tl_assert(0);
                     }
-                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset, 0, size);
+                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset * 2, IRTemp_INVALID, size * sizeof(IRTemp));
                 } 
 
                 break;
@@ -709,7 +714,7 @@ static inline Bool found_temp_use(XArray *queue,
 static inline Bool observed_load_use(IRTemp tmp,
                                      IRSB *sbIn,
                                      UInt i,
-                                     Bool *pre_reg_markers,
+                                     IRTemp **pre_reg_markers,
                                      SizeT reg_table_size) {
     IRStmt *st = sbIn->stmts[i];
     IRExpr *expr = st->Ist.WrTmp.data;
@@ -722,13 +727,24 @@ static inline Bool observed_load_use(IRTemp tmp,
         QueuedLoad tuple = (QueuedLoad) { tmp, i };
         VG_(addToXA)(queue, &tuple);
 
+        IRTemp *copy = VG_(malloc)("fi.instrumentation.copy", reg_table_size);
+        VG_(memcpy)(copy, *pre_reg_markers, reg_table_size);
+
         Word j = 0;
         Bool found = False;
         /* Always check size as this might grow. */
         for(; j < VG_(sizeXA)(queue) && !found; ++j) {
             QueuedLoad *q = VG_(indexXA)(queue, j);
-            found = found_temp_use(queue, q, sbIn, pre_reg_markers);
-            VG_(memset)(pre_reg_markers, 0, reg_table_size);
+            found = found_temp_use(queue, q, sbIn, *pre_reg_markers, tmp);
+        }
+
+        /* Restore old table, the new one might contain remainders that we
+        * don't want to cover right now: If a branched value of this one goes 
+        * into a PUT, live with it. For now, look at the edge case of
+        * Load -> Put -> Syscall */
+        if(found) {
+            VG_(free)(*pre_reg_markers);
+            *pre_reg_markers = copy;
         }
 
         VG_(deleteXA)(queue);
@@ -801,9 +817,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
 
-    SizeT reg_table_size = sizeof(Bool) * layout->total_sizeB;
-    Bool *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", reg_table_size);
-    VG_(memset)(pre_reg_markers, 0, reg_table_size);
+    SizeT reg_table_size = sizeof(IRTemp) * layout->total_sizeB;
+    IRTemp *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", reg_table_size);
+    VG_(memset)(pre_reg_markers, IRTemp_INVALID, reg_table_size);
 
     /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -836,14 +852,21 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         if(monitor_sb) {
             switch (st->tag) {
                 case Ist_Put:
-                    /* PUTting something should not count as access. */
-                    JUST_REPLACE_ACCESS(st->Ist.Put.data);
+                    if(!fi_reg_set_passive_occupancy(&tData,
+                                                     loads,
+                                                     pre_reg_markers,
+                                                     st->Ist.Put.offset,
+                                                     st->Ist.Put.data,
+                                                     sbOut)) {
+                        /* PUTting something should not count as access. */
+                        JUST_REPLACE_ACCESS(st->Ist.Put.data);
 
-                    fi_reg_set_occupancy(&tData,
-                                         loads,
-                                         st->Ist.Put.offset,
-                                         st->Ist.Put.data,
-                                         sbOut);
+                        fi_reg_set_occupancy(&tData,
+                                             loads,
+                                             st->Ist.Put.offset,
+                                             st->Ist.Put.data,
+                                             sbOut);
+                    }
                     break;
                 case Ist_PutI:
                     /* The impact of those operation to the shadow registers
@@ -854,7 +877,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                 case Ist_WrTmp: {
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
-                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, pre_reg_markers, reg_table_size);
+                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, &pre_reg_markers, reg_table_size);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {

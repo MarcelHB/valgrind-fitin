@@ -118,6 +118,18 @@ void fi_reg_set_occupancy(toolData *tool_data,
                           IRExpr *expr,
                           IRSB *sb);
 
+/* Whenever a PUT to an `offset` occurs, this method will analyze the
+   expression `expr` for its relevancy for passive tmps, that are known to
+   have no actual use inside the current `sb` (listed in `pre_reg_markers`, 
+   and add the runtime helpers. */
+Bool fi_reg_set_passive_occupancy(toolData *tool_data,
+                                  XArray *loads,
+                                  IRTemp *pre_reg_markers,
+                                  Int offset,
+                                  IRExpr *expr,
+                                  IRSB *sb);
+
+
 /* Function to be used by XArray to sort loads by destination IRTemp. */
 Int fi_reg_compare_loads(const void *l1, const void *l2);
 

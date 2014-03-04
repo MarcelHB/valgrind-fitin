@@ -201,6 +201,48 @@ static inline void update_reg_load_sizes(toolData *tool_data,
 
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
+inline Bool fi_reg_set_passive_occupancy(toolData *tool_data,
+                                         XArray *loads,
+                                         IRTemp *pre_reg_markers,
+                                         Int offset,
+                                         IRExpr *expr,
+                                         IRSB *sb) {
+    if(expr->tag == Iex_RdTmp) {
+        if(pre_reg_markers[offset*2] == expr->Iex.RdTmp.tmp) {
+            IRTemp original_tmp = pre_reg_markers[offset*2+1];
+            Word first, last;
+            LoadData key = (LoadData) { original_tmp, Ity_INVALID, NULL, 0 };
+
+            if(VG_(lookupXA)(loads, &key, &first, &last)) {
+                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
+
+                IRType ty = typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp);
+                SizeT size = sizeofIRType(ty);
+
+                IRExpr **args = mkIRExprVec_4(mkIRExpr_HWord((HWord) tool_data),
+                                              mkIRExpr_HWord(offset),
+                                              mkIRExpr_HWord(size),
+                                              IRExpr_RdTmp(load_data->state_list_index));
+                IRDirty *dirty = unsafeIRDirty_0_N(0,
+                                                   "fi_reg_set_occupancy_origin",
+                                                   VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
+                                                   args);
+
+                IRStmt *st = IRStmt_Dirty(dirty);
+                addStmtToIRSB(sb, st);
+
+                tool_data->reg_temp_occupancies[offset] = expr->Iex.RdTmp.tmp;
+
+                return True;
+            }
+        }
+    }
+
+    return False;
+}
+
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
 inline void fi_reg_set_occupancy(toolData *tool_data,
                                  XArray *loads,
                                  Int offset,
