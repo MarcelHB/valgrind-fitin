@@ -61,6 +61,7 @@ typedef struct {
     IRExpr *addr; 
     IRTemp state_list_index;
     IREndness end;
+		Bool passive;
 } LoadData;
 
 /* Just a data tuple of (old temp, new temp) used to replace original
@@ -91,16 +92,10 @@ Bool fi_reg_add_load_on_get(toolData *tool_data,
                             IRExpr *expr,
                             IRSB *sb);
 
-/* This method is only needed on 64bit guests on a WrTmp. It checks `expr` for
-   the presence of some resizing Unops that will be ignored for access but used
-   to add a new load to `loads` for `new_temp`. Please see the implementation for
-   important details concerning this! */
-Bool fi_reg_add_load_on_resize(toolData *tool_data,
-                               XArray *loads,
-                               XArray *resize,
-                               IRExpr **expr,
-                               IRTemp new_temp,
-                               IRSB *sb);
+/* Don't tell don't ask for casts: We ignore casts completely, both for
+ * accessing and instrumenting, but also for considering the resized values
+ * as replacements. If `expr` is a cast UnOp, it returns true. */
+Bool fi_reg_skip_on_resize(IRExpr *expr);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
    to insert helpers if appllicable. */

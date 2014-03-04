@@ -885,6 +885,10 @@ static inline IRTemp instrument_access_tmp(toolData *tool_data,
         Bool reload = False;
         load_data = (LoadData*) VG_(indexXA)(loads, first);
 
+        if(load_data->passive) {
+            return IRTemp_INVALID;
+        }
+
         if(ty <= tool_data->gWordTy) {
             /* Insert widener if temp is too small for being an argument. */
             if(ty < tool_data->gWordTy) {
@@ -975,25 +979,6 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
                                                         (*expr)->Iex.RdTmp.tmp,
                                                         sb);
                 if(new_temp != IRTemp_INVALID) {
-                    IRType original_ty = typeOfIRTemp(sb->tyenv, original_temp);
-                    IRType new_ty = typeOfIRTemp(sb->tyenv, new_temp);
-
-                    /* This is necessary to work on 64bit systems as temporaries
-                     * may branch:
-                     *
-                     *   tX+1 = 32->64(tX)
-                     *     USE(tX+1)
-                     *   USE(tX)
-                     *
-                     * FITIn's algorithm will in any case set up: tX -> tX+1.
-                     * If we replace tX by tX+1, we have a bad size in the following
-                     * code. Here, we insert a resizer to have tX+2 with the original
-                     * size to be used instead of tX+1.
-                     */
-                    if(original_ty != new_ty) {
-                        new_temp = insert_64bit_resizer(new_temp, sb);
-                    }
-
                     add_replacement(replacements,
                                     (*expr)->Iex.RdTmp.tmp,
                                     new_temp);
@@ -1039,57 +1024,24 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
     }
 }
 
-/* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
-inline Bool fi_reg_add_load_on_resize(toolData *tool_data,
-                                      XArray *loads,
-                                      XArray *replacements,
-                                      IRExpr **expr,
-                                      IRTemp new_temp,
-                                      IRSB *sb) {
-    if((*expr)->tag == Iex_Unop && (*expr)->Iex.Unop.arg->tag == Iex_RdTmp) {
-        IROp op = (*expr)->Iex.Unop.op;
-
-        /* IMPORTANT: 
-           This workaround overcomes a problem under 64bit if you try
-           read a value and just PUT it. This is not supposed to count
-           as read but these conversions make it count as such a one.
-
-           So we must treat them as loads.
-           */
-
-        /* Only take care of those three operations (enough?) */
-        if(op == Iop_64to32 || op == Iop_32Sto64 || op == Iop_32Uto64) {
-            Word first, last;
-            LoadData load_key;
-
-            /* Replace the argument by what it is supposed to be by now. */
-            replace_temps(replacements, &((*expr)->Iex.Unop.arg));
-            load_key.dest_temp = (*expr)->Iex.Unop.arg->Iex.RdTmp.tmp;
-
-            if(VG_(lookupXA)(loads, &load_key, &first, &last)) {
-                LoadData *load_data = (LoadData*) VG_(indexXA)(loads, first);
-                LoadData new_load_data = *load_data;
-                IRTemp aligned_temp = load_data->dest_temp;
-
-                /* If replacing yielded a misaligned type, we have to convert it
-                   right before. */
-                if((load_data->ty == Ity_I32 && op == Iop_64to32) ||
-                   (load_data->ty == Ity_I64 && (op == Iop_32Sto64 || op == Iop_32Uto64))) {
-
-                    aligned_temp = insert_64bit_resizer(load_data->dest_temp, sb);
-                    add_replacement(replacements, load_data->dest_temp, aligned_temp);
-                    replace_temp(aligned_temp, &((*expr)->Iex.Unop.arg));
-               }
-
-                /* Here, we also have to change the type. */
-                new_load_data.dest_temp = new_temp;
-                new_load_data.ty = op == Iop_64to32 ? Ity_I32 : Ity_I64;
-
-                fi_reg_add_temp_load(loads, &new_load_data);
-                add_replacement(replacements, aligned_temp, new_temp);
-            }
-
+inline Bool fi_reg_skip_on_resize(IRExpr *expr) {
+    if(expr->tag == Iex_Unop) {
+        IROp op = expr->Iex.Unop.op;
+        /* This is hopefully complete/correct. Doc is not always that precise here. */
+        if((op >= Iop_DivModU64to32 && op <= Iop_1Sto64) ||
+           (op >= Iop_F64toI16S && op <= Iop_F64toF32) ||
+           (op >= Iop_F64HLtoF128 && op <= Iop_F128LOtoF64) ||
+           (op >= Iop_I32StoF128 && op <= Iop_F128toF32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux8 && op <= Iop_NarrowBin32to16x4) ||
+           (op >= Iop_D32toD64 && op <= Iop_D128toF128) ||
+           (op >= Iop_D64HLtoD128 && op <= Iop_D128LOtoD64) ||
+           (op >= Iop_I32UtoFx4 && op <= Iop_QFtoI32Sx4_RZ) ||
+           (op >= Iop_F32toF16x4 && op <= Iop_F16toF32x4) ||
+           (op >= Iop_V128to64 && op <= Iop_V128to32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux16 && op <= Iop_Widen32Sto64x2) ||
+           (op >= Iop_V256to64_0 && Iop_V128HLtoV256)
+           ) {
             return True;
         }
     }
@@ -1150,6 +1102,10 @@ static inline IRTemp instrument_access_tmp_on_store(toolData *tool_data,
         Bool reload = False;
         IRDirty *dirty;
         load_data = (LoadData*) VG_(indexXA)(loads, first);
+
+        if(load_data->passive) {
+            return IRTemp_INVALID;
+        }
 
         if(ty <= tool_data->gWordTy) {
             /* Insert widener if temp is too small for being an argument. */

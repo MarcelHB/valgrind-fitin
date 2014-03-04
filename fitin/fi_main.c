@@ -528,6 +528,217 @@ static inline void initialize_register_lists(Int size) {
     VG_(memset)(tData.reg_load_sizes, 0, sizeof(SizeT) * size * 2);
 }
 
+#define ACCESSES(expr) accesses_temp((expr), tmp, queue, i, depth, is_WrTmp)
+
+/* --------------------------------------------------------------------------*/
+static inline Bool accesses_temp(IRExpr *expr,
+                                 IRTemp tmp,
+                                 XArray *queue,
+                                 UInt i,
+                                 UInt *depth,
+                                 Bool is_WrTmp) {
+    *depth = *depth + 1;
+
+    switch(expr->tag) {
+        case Iex_GetI:
+            return ACCESSES(expr->Iex.GetI.ix);
+        case Iex_RdTmp:
+            return expr->Iex.RdTmp.tmp == tmp;
+        case Iex_Qop:
+            return ACCESSES(expr->Iex.Qop.details->arg1) ||
+                  ACCESSES(expr->Iex.Qop.details->arg2) ||
+                  ACCESSES(expr->Iex.Qop.details->arg3) ||
+                  ACCESSES(expr->Iex.Qop.details->arg4);
+        case Iex_Triop:
+            return ACCESSES(expr->Iex.Triop.details->arg1) ||
+                  ACCESSES(expr->Iex.Triop.details->arg2) ||
+                  ACCESSES(expr->Iex.Triop.details->arg3);
+        case Iex_Binop:
+            return ACCESSES(expr->Iex.Binop.arg1) ||
+                  ACCESSES(expr->Iex.Binop.arg2);
+        case Iex_Unop:
+            return ACCESSES(expr->Iex.Unop.arg);
+        case Iex_ITE:
+            return ACCESSES(expr->Iex.ITE.cond) ||
+                  ACCESSES(expr->Iex.ITE.iftrue) ||
+                  ACCESSES(expr->Iex.ITE.iffalse);
+        case Iex_CCall: {
+            Bool any = False;
+            IRExpr **expr_ptr = expr->Iex.CCall.args;
+            while(*expr_ptr != NULL && !any) {
+                any = ACCESSES(*expr_ptr);
+                expr_ptr++;
+            }
+            return any;
+        }
+        default:
+            return False;
+    }
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool is_cast_unop(IROp op) {
+    return (op >= Iop_DivModU64to32 && op <= Iop_1Sto64) ||
+           (op >= Iop_F64toI16S && op <= Iop_F64toF32) ||
+           (op >= Iop_F64HLtoF128 && op <= Iop_F128LOtoF64) ||
+           (op >= Iop_I32StoF128 && op <= Iop_F128toF32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux8 && op <= Iop_NarrowBin32to16x4) ||
+           (op >= Iop_D32toD64 && op <= Iop_D128toF128) ||
+           (op >= Iop_D64HLtoD128 && op <= Iop_D128LOtoD64) ||
+           (op >= Iop_I32UtoFx4 && op <= Iop_QFtoI32Sx4_RZ) ||
+           (op >= Iop_F32toF16x4 && op <= Iop_F16toF32x4) ||
+           (op >= Iop_V128to64 && op <= Iop_V128to32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux16 && op <= Iop_Widen32Sto64x2) ||
+           (op >= Iop_V256to64_0 && Iop_V128HLtoV256);
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool found_temp_use(XArray *queue,
+                                  QueuedLoad *tuple,
+                                  IRSB *sb,
+                                  Bool *pre_reg_markers) {
+    UInt i = tuple->i, d = 0;
+    UInt *depth = &d;
+    Bool found = False;
+    IRTemp tmp = tuple->t;
+
+    for(; i < sb->stmts_used && !found; ++i) {
+        IRStmt *st = sb->stmts[i];
+        Bool is_WrTmp = False;
+        d = 0;
+
+        switch(st->tag) {
+            case Ist_WrTmp: {
+                IRExpr *expr = st->Ist.WrTmp.data;
+                if(expr->tag == Iex_Get) {
+                    if(pre_reg_markers[expr->Iex.Get.offset] == 1) {
+                        QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                        VG_(addToXA)(queue, &q);
+                    }
+                } else {
+                    is_WrTmp = True;
+                    found = ACCESSES(st->Ist.WrTmp.data);
+                    if(found) {
+
+                        if(d == 1) {
+                            /* Alias. */
+                            QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                            VG_(addToXA)(queue, &q);
+                            found = False;
+                        } else {
+                            if(expr->tag == Iex_Unop && is_cast_unop(expr->Iex.Unop.op)) {
+                                QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                                VG_(addToXA)(queue, &q);
+                                found = False;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            case Ist_Store:
+                /* Data here as well, at runtime we will check the destination. */
+                found = ACCESSES(st->Ist.Store.addr) || ACCESSES(st->Ist.Store.data);
+                break;
+            case Ist_Dirty: {
+                found = ACCESSES(st->Ist.Dirty.details->guard);
+                 IRExpr **arg_ptr = st->Ist.Dirty.details->args;
+                while(*arg_ptr != NULL && !found) {
+                    found = ACCESSES(*arg_ptr);
+                    arg_ptr++;
+                }
+                if(!found && st->Ist.Dirty.details->mFx != Ifx_None) {
+                    found = ACCESSES(st->Ist.Dirty.details->mAddr);
+                }
+                break;
+            }
+            case Ist_Put: {
+                Bool local_found = ACCESSES(st->Ist.Put.data);
+                IRExpr *expr = st->Ist.Put.data;
+                if(local_found && d == 1) {
+                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset, 1,
+                                sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp)));
+                } else {
+                    SizeT size = 0;
+                    if(expr->tag == Iex_Const) {
+                        IRType ty = typeOfIRConst(expr->Iex.Const.con);
+                        size = sizeofIRType(ty);
+                    } else if(expr->tag == Iex_RdTmp && d == 1) {
+                        size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
+                    } else {
+                        tl_assert(0);
+                    }
+                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset, 0, size);
+                } 
+
+                break;
+            }
+            case Ist_PutI:
+                found = ACCESSES(st->Ist.PutI.details->ix) ||
+                   ACCESSES(st->Ist.PutI.details->data);
+                break;
+            case Ist_CAS:
+                found = ACCESSES(st->Ist.CAS.details->addr) ||
+                    ACCESSES(st->Ist.CAS.details->expdLo) ||
+                    ACCESSES(st->Ist.CAS.details->dataLo);
+                if(!found && st->Ist.CAS.details->expdHi != NULL) {
+                    found = ACCESSES(st->Ist.CAS.details->expdHi);
+                }
+                if(!found && st->Ist.CAS.details->dataHi != NULL) {
+                    found = ACCESSES(st->Ist.CAS.details->dataHi);
+                }
+                break;
+            case Ist_LLSC:
+                found = ACCESSES(st->Ist.LLSC.addr);
+
+                if(!found && st->Ist.LLSC.storedata != NULL) {
+                    found = ACCESSES(st->Ist.LLSC.storedata);
+                }
+                break;
+            case Ist_Exit:
+                found = ACCESSES(st->Ist.Exit.guard);
+                break;
+            default:
+                break;
+       }
+    }
+    return found;
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool observed_load_use(IRTemp tmp,
+                                     IRSB *sbIn,
+                                     UInt i,
+                                     Bool *pre_reg_markers,
+                                     SizeT reg_table_size) {
+    IRStmt *st = sbIn->stmts[i];
+    IRExpr *expr = st->Ist.WrTmp.data;
+
+    if(expr->tag == Iex_Load) {
+        XArray *queue = VG_(newXA)(VG_(malloc),
+                                   "fi.intrumentation.load_check",
+                                   VG_(free),
+                                   sizeof(QueuedLoad));
+        QueuedLoad tuple = (QueuedLoad) { tmp, i };
+        VG_(addToXA)(queue, &tuple);
+
+        Word j = 0;
+        Bool found = False;
+        /* Always check size as this might grow. */
+        for(; j < VG_(sizeXA)(queue) && !found; ++j) {
+            QueuedLoad *q = VG_(indexXA)(queue, j);
+            found = found_temp_use(queue, q, sbIn, pre_reg_markers);
+            VG_(memset)(pre_reg_markers, 0, reg_table_size);
+        }
+
+        VG_(deleteXA)(queue);
+
+        return found;
+    }
+
+    return False;
+}
+
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
                                                          loads,\
                                                          replacements,\
@@ -553,7 +764,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     IRStmt    *st;
     IRExpr **argv;
     IRDirty *di;
-    int i;
+    UInt i;
     XArray *loads = NULL, *replacements = NULL;
     Bool monitor_sb = False, monitoring_checked = False;
 
@@ -589,6 +800,10 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                               sizeof(ReplaceData)); 
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
+
+    SizeT reg_table_size = sizeof(Bool) * layout->total_sizeB;
+    Bool *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", reg_table_size);
+    VG_(memset)(pre_reg_markers, 0, reg_table_size);
 
     /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -637,27 +852,18 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
-                    /* IMPORTANT: please see fi_reg_add_load_on_resize.*/
-                    if(tData.gWordTy == Ity_I64 && 
-                            fi_reg_add_load_on_resize(&tData,
-                                                      loads,
-                                                      replacements,
-                                                      &(st->Ist.WrTmp.data),
-                                                      st->Ist.WrTmp.tmp,
-                                                      sbOut)) {
-                        break;
-                    }
-
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
+                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, pre_reg_markers, reg_table_size);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
                         load_data->dest_temp = st->Ist.WrTmp.tmp;
+                        load_data->passive = !used;
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(&tData, 
+                        fi_reg_add_load_on_get(&tData,
                                                loads,
                                                st->Ist.WrTmp.tmp,
                                                typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
@@ -735,6 +941,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
 
     VG_(deleteXA)(replacements);
     VG_(deleteXA)(loads);
+    VG_(free)(pre_reg_markers);
 
     return sbOut;
 }

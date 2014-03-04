@@ -109,4 +109,9 @@ typedef struct _toolData {
 #endif
 } toolData;
 
+typedef struct QueuedLoad {
+    IRTemp t;
+    UInt i;
+} QueuedLoad;
+
 #endif /* __FITIN_H */
