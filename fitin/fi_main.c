@@ -350,8 +350,15 @@ static const luaL_Reg fitin_lualibs[] = {
 
 /* --------------------------------------------------------------------------*/
 static void init_lua(void) {
-    tData.lua = luaL_newstate();
     const luaL_Reg *lib = NULL;
+    tData.lua = luaL_newstate();
+
+    /* Happenes on latest FreeBSD, not solved yet. */
+    if(tData.lua == NULL) {
+        VG_(printf)("Failed to initialize Lua!\n");
+        VG_(exit)(1);
+    }
+
     for (lib = fitin_lualibs; lib->func; lib++) {
         luaL_requiref(tData.lua, lib->name, lib->func, 1);
         lua_pop(tData.lua, 1); 
