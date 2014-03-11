@@ -53,11 +53,7 @@
 --  If missing: Every super block is monitored.
 --
 treat_superblock = function(address, fnname, filename, dirname, linenum)
-  if fnname == "main" then
-    return true
-  else
-    return false
-  end
+  return fnname == "main"
 end
 
 -- monitor_address:
@@ -78,11 +74,7 @@ end
 -- The following listing is only for demonstration.
 --
 monitor_address = function(address, annotated)
-  if annotated then
-    return true
-  else
-    return false
-  end
+  return annotated
 end
 
 -- flip_value:

@@ -1,17 +1,9 @@
 monitor_address = function(address, annotated)
-  if annotated then
-    return true
-  else
-    return false
-  end
+  return annotated
 end
 
 treat_superblock = function(address, fnname, filename, dirname, linenum)
-  if fnname == "just_do_it" then
-    return true
-  else
-    return false
-  end
+  return fnname == "just_do_it"
 end
 
 flip_value = function(state, address, counter, size)
