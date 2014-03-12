@@ -1,3 +1,5 @@
+#include "fi_client.F95"
+
 #define POWER 4
 #define OPERATING 2
 #define OVERLOAD 1
