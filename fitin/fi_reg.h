@@ -44,8 +44,13 @@
 typedef struct {
     Bool relevant;
     Addr location;
+    /* The current size, subject to implicit casts via registers. */
     SizeT size;
+    /* The size given by the monitorable data. */
     SizeT full_size;
+    void *data;
+    /* The size when initially loaded into memory. */
+    SizeT original_size;
 } LoadState;
 
 /* This struct is used at instrumentation time to keep track of
@@ -55,6 +60,8 @@ typedef struct {
     IRType ty;
     IRExpr *addr; 
     IRTemp state_list_index;
+    IREndness end;
+		Bool passive;
 } LoadData;
 
 /* Just a data tuple of (old temp, new temp) used to replace original
@@ -63,6 +70,13 @@ typedef struct {
     IRTemp old_temp;
     IRTemp new_temp;
 } ReplaceData;
+
+typedef struct {
+    toolData *td;
+    LoadState *state;
+    enum { MEMORY, REG_TABLE, NORMAL } type;
+    UInt offset;
+} LuaFlipPassData;
 
 /* Helper function to properly add a LoadData into the appropriate list. */
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
@@ -75,18 +89,13 @@ Bool fi_reg_add_load_on_get(toolData *tool_data,
                             XArray *loads,
                             IRTemp new_temp,
                             IRType ty,
-                            IRExpr *expr);
+                            IRExpr *expr,
+                            IRSB *sb);
 
-/* This method is only needed on 64bit guests on a WrTmp. It checks `expr` for
-   the presence of some resizing Unops that will be ignored for access but used
-   to add a new load to `loads` for `new_temp`. Please see the implementation for
-   important details concerning this! */
-Bool fi_reg_add_load_on_resize(toolData *tool_data,
-                               XArray *loads,
-                               XArray *resize,
-                               IRExpr **expr,
-                               IRTemp new_temp,
-                               IRSB *sb);
+/* Don't tell don't ask for casts: We ignore casts completely, both for
+ * accessing and instrumenting, but also for considering the resized values
+ * as replacements. If `expr` is a cast UnOp, it returns true. */
+Bool fi_reg_skip_on_resize(IRExpr *expr);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
    to insert helpers if appllicable. */
@@ -109,11 +118,23 @@ void fi_reg_set_occupancy(toolData *tool_data,
                           IRExpr *expr,
                           IRSB *sb);
 
+/* Whenever a PUT to an `offset` occurs, this method will analyze the
+   expression `expr` for its relevancy for passive tmps, that are known to
+   have no actual use inside the current `sb` (listed in `pre_reg_markers`, 
+   and add the runtime helpers. */
+Bool fi_reg_set_passive_occupancy(toolData *tool_data,
+                                  XArray *loads,
+                                  IRTemp *pre_reg_markers,
+                                  Int offset,
+                                  IRExpr *expr,
+                                  IRSB *sb);
+
+
 /* Function to be used by XArray to sort loads by destination IRTemp. */
-Int fi_reg_compare_loads(void *l1, void *l2);
+Int fi_reg_compare_loads(const void *l1, const void *l2);
 
 /* Function to be used by XArray to sort replacements by replacable IRTemp. */
-Int fi_reg_compare_replacements(void *l1, void *l2);
+Int fi_reg_compare_replacements(const void *l1, const void *l2);
 
 /* This method must be used if we know that data is definitely read from 
    memory (syscall). It takes the address `a` and the size `size` to check
@@ -144,5 +165,16 @@ Bool fi_reg_instrument_store(toolData *tool_data,
                              IRExpr **expr,
                              IRExpr *address,
                              IRSB *sb);
+
+#ifdef FITIN_WITH_LUA
+/* This function can be directly called from inside Lua on `flip_value`. It
+   has to pass the given pointer `data` and an array of bit patterns. */
+int lua_persist_flip(lua_State *lua);
+
+/* From virtually any callback, the user can call this method with
+   address, pattern, size to manually trigger bit flips outside of given
+   addresses. */
+int lua_flip_on_memory(lua_State *lua);
+#endif
 
 #endif

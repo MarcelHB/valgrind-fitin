@@ -17,21 +17,8 @@ Whenever FITIn detects a read from a memory beginning at a monitored
 start address, a counter is increased - even if the data has been loaded
 into a register.
 
-If the counter - by whatever monitored has been accessed - hits
-```--mod-load-time```, it will attempt to flip the bit ```--mod-bit```
-before the actual read. 'Attempt' in terms of evaluating whether the
-desired bit is in range of the loaded data. If not, no flip can occur.
-The desired bit counts from the offset of the least significant bit of
-the variable.
-
-By not discriminating between registers and memory, a flipped value may
-be dropped if it resides in a register and won't be written into its
-original location afterwards. This may be the case if you have memory
-you only need to read from. To persist the manipulated value in any
-case, please use ```--persist-flip=yes```. With this option, even if the
-value could not be flipped at first (e.g. only the first byte of an
-```int``` was loaded), it will replace the flipped byte-of-the-bit in
-the memory.
+Next to some other customizable constraints, you can use this counter
+to schedule bit-flips, performed by the Lua-callback ```flip_value```.
 
 FITIn will also treat reads of memory and registers by syscalls.
 
@@ -51,7 +38,7 @@ Things that do not count as access (with ```a``` being monitored):
 
 ## Use
 
-FITIn requires annotating source code in order to work as expected.
+FITIn recommends annotating source code in order to work conveniently.
 
 ### Code
 
@@ -71,9 +58,10 @@ tool useless.
 Start FITIn by specifying ```--tool=fitin``` followed by options and the
 program to run.
 
-The most important options are ```--mod-load-time=n``` that will trigger
-the flip at the n-th access to a monitored memory area at the m-th bit
-specified by ```--mod-bit=m``` (with 0 being the LSB).
+Control over FITIn has been moved to Lua scripts completely. You need to
+provide the path to a Lua script by ```--control-script=```. Please read
+the file ```sample.lua``` for a documentation of callbacks and
+limitations of the Lua-runtime.
 
 For additional options of Valgrind and FITIn, please consult
 ```--tool=fitin --help```.
@@ -91,10 +79,6 @@ For more information, please consult the ```README``` inside.
 
 ## Limitations
 
-* One fault injection per run.
-* Not supported data types: double, float, native vector types.
-* Monitoring across functions, only one per run (```--fnname=```),
-  or all of the user code (```--include=``` to the source code).
 * If accessing data from memory, the tool focuses on matching start
   addresses being monitored. For uses of different alignments, use
   ```FITIN_MONITOR_MEMORY``` instead of ```FITIN_MONITOR_VARIABLE```

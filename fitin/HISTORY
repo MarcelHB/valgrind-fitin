@@ -1,0 +1,31 @@
+January 2014
+============
+
+* Embeds Lua, updates runtime control by Lua scripts
+
+November 2013
+=============
+
+* Adds support for any data types, especially floating point data
+* Updates Valgrind to v3.9
+* Proof-of-concept for Fortran code
+
+Ocotober 2013
+=============
+
+FITIn is accepted for a tool demonstration on IEEE CSMR-WCRE 2014.
+
+August 2013
+===========
+
+* Improves support for AMD64 systems
+
+June 2013
+=========
+
+* Adds register-aware flipping
+
+April 2013
+==========
+
+* Initial release

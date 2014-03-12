@@ -7,7 +7,7 @@
    This file is part of Valgrind, a dynamic binary instrumentation
    framework.
 
-   Copyright (C) 2010-2012 RT-RK
+   Copyright (C) 2010-2013 RT-RK
       mips-valgrind@rt-rk.com
 
    This program is free software; you can redistribute it and/or
@@ -32,7 +32,6 @@
 #define __LIBVEX_PUB_GUEST_MIPS32_H
 
 #include "libvex_basictypes.h"
-#include "libvex_emwarn.h"
 
 
 /*---------------------------------------------------------------*/
@@ -129,8 +128,8 @@ typedef
       */
       /*   288 */ UInt guest_ULR;
 
-      /* Emulation warnings */
-          UInt   guest_EMWARN;  /* 292 */
+      /* Emulation notes */
+          UInt   guest_EMNOTE;  /* 292 */
 
       /* For clflush: record start and length of area to invalidate */
         UInt guest_TISTART;     /* 296 */
@@ -140,6 +139,16 @@ typedef
         UInt host_EvC_FAILADDR; /* 308 */
         UInt host_EvC_COUNTER;  /* 312 */
         UInt guest_COND;        /* 316 */
+
+        UInt padding1;
+      /* MIPS32 DSP ASE(r2) specific registers. */
+        UInt guest_DSPControl;  /* 324 */
+        ULong guest_ac0;        /* 328 */
+        ULong guest_ac1;        /* 336 */
+        ULong guest_ac2;        /* 344 */
+        ULong guest_ac3;        /* 352 */
+        
+        UInt padding[6];
 } VexGuestMIPS32State;
 /*---------------------------------------------------------------*/
 /*--- Utility functions for MIPS32 guest stuff.               ---*/

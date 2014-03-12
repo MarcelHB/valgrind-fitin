@@ -9,7 +9,7 @@
   from memchec/mc_replace_strmem.c, which has the following copyright
   notice:
 
-  Copyright (C) 2000-2012 Julian Seward
+  Copyright (C) 2000-2013 Julian Seward
   jseward@acm.org
 
   This program is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@
 #include "pub_tool_hashtable.h"
 #include "pub_tool_redir.h"
 #include "pub_tool_tooliface.h"
-#include "valgrind.h"
+#include "pub_tool_clreq.h"
 
 
 #define STRNLEN(soname, fnname)                                         \
@@ -70,6 +70,7 @@
  STRLEN(VG_Z_LIBC_SONAME,          strlen)
  STRLEN(VG_Z_LD_LINUX_SO_2,        strlen)
  STRLEN(VG_Z_LD_LINUX_X86_64_SO_2, strlen)
+ STRLEN(VG_Z_LIBC_SONAME,          __GI_strlen)
 #elif defined(VGO_darwin)
  STRLEN(VG_Z_LIBC_SONAME,          strlen)
 #endif

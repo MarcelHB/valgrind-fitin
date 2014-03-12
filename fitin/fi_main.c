@@ -45,6 +45,12 @@
 #include "fitin.h"
 #include "fi_reg.h"
 
+#ifdef FITIN_WITH_LUA
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+#endif
+
 static const unsigned int MAX_STR_SIZE = 512;
 typedef enum exitValues {
     EXIT_SUCCESS,
@@ -82,7 +88,7 @@ static toolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
 /* --------------------------------------------------------------------------*/
-static Int cmpMonitorable (void *v1, void *v2) {
+static Int cmpMonitorable (const void *v1, const void *v2) {
     Monitorable m1 = *(Monitorable *)v1;
     Monitorable m2 = *(Monitorable *)v2;
     if (m1.monAddr < m2.monAddr) {
@@ -96,11 +102,9 @@ static Int cmpMonitorable (void *v1, void *v2) {
 
 /* --------------------------------------------------------------------------*/
 static void initTData(void) {
-    tData.instAddr = (Addr)NULL;
-    tData.monitoredInst = False;
     tData.loads = 0;
     tData.filter = MT_FILTFUNC;
-    tData.filtstr = "main";
+    tData.filtstr = (HChar*) "main";
     tData.instCnt = 0;
     tData.instLmt = 0;
     tData.modMemLoadTime = 1;
@@ -110,6 +114,12 @@ static void initTData(void) {
     tData.reg_temp_occupancies = NULL;
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
+    tData.runtime_active = True;
+#ifdef FITIN_WITH_LUA
+    tData.lua_script = NULL;
+    tData.lua = NULL;
+    tData.available_callbacks = 0;
+#endif
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -125,8 +135,8 @@ static void initTData(void) {
 /* Check whether the instruction at 'instAddr' is in the function with the name
    in 'fnc' */
 /* --------------------------------------------------------------------------*/
-static inline Bool instInFunc(Addr instAddr, Char *fnc) {
-    Char fnname[MAX_STR_SIZE];
+static inline Bool instInFunc(Addr instAddr, const HChar *fnc) {
+    HChar fnname[MAX_STR_SIZE];
     return (VG_(get_fnname)(instAddr, fnname, sizeof(fnname))
             && !VG_(strcmp)(fnname, fnc));
 }
@@ -155,8 +165,8 @@ void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
 /* --------------------------------------------------------------------------*/
 static inline Bool instInInclude(Addr instAddr, char *incl) {
 
-    Char filename[MAX_STR_SIZE];
-    Char dirname[MAX_STR_SIZE];
+    HChar filename[MAX_STR_SIZE];
+    HChar dirname[MAX_STR_SIZE];
     Bool diravail;
     UInt linenum;
     Bool retval;
@@ -171,8 +181,6 @@ static inline Bool instInInclude(Addr instAddr, char *incl) {
         return False;
     }
 
-    //check whether the dirname begins like the content of incl
-    //TODO: Is there a better way than comparing strings?
     retval =  !VG_(strncmp)(dirname, incl, VG_(strlen)(incl));
 
     return retval;
@@ -186,6 +194,39 @@ static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
     }
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 8) {
+        HChar fnname[MAX_STR_SIZE];
+        HChar filename[MAX_STR_SIZE];
+        HChar dirname[MAX_STR_SIZE];
+        UInt linenum = 0;
+        Bool diravail = False;
+
+        VG_(memset)(fnname, 0, MAX_STR_SIZE);
+        VG_(memset)(filename, 0, MAX_STR_SIZE);
+        VG_(memset)(dirname, 0, MAX_STR_SIZE);
+
+        VG_(get_fnname)(instAddr, fnname, sizeof(fnname));
+        VG_(get_filename_linenum)(instAddr, 
+                                  filename, MAX_STR_SIZE,
+                                  dirname, MAX_STR_SIZE, &diravail,
+                                  &linenum);
+        lua_getglobal(tData.lua, "treat_superblock");    
+        lua_pushinteger(tData.lua, instAddr);
+        lua_pushstring(tData.lua, fnname);
+        lua_pushstring(tData.lua, filename);
+        lua_pushstring(tData.lua, dirname);
+        lua_pushinteger(tData.lua, linenum);
+        if(lua_pcall(tData.lua, 5, 1, 0) == 0) {
+           return lua_toboolean(tData.lua, -1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+        lua_pop(tData.lua, 1);
+    } else {
+        return True;
+    }
+#else
     switch (tData.filter) {
         case MT_FILTFUNC:
             return instInFunc(instAddr, tData.filtstr);
@@ -195,34 +236,46 @@ static inline Bool monitorInst(Addr instAddr) {
             tl_assert(0);
             break;
     }
+#endif
 }
 
 /* A simple instruction counter. */
 /* --------------------------------------------------------------------------*/
 static inline void incrInst(void) {
     tData.instCnt++;
+
+#ifndef FITIN_WITH_LUA
     if(tData.instLmt && tData.instCnt >= tData.instLmt) {
         fi_fini(EXIT_STOPPED);
         VG_(exit)(0);
     }
-
+#endif
 }
 
 /* FITIn uses several command line options.
    Valgrind helps to parse them.
  */
 /* --------------------------------------------------------------------------*/
-static Bool fi_process_cmd_line_option(Char *arg) {
+static Bool fi_process_cmd_line_option(const HChar *arg) {
+    const HChar* tmp_string = NULL;
 
-    if VG_STR_CLO(arg, "--fnname", tData.filtstr) {
+    if VG_STR_CLO(arg, "--fnname", tmp_string) {
+        tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTFUNC;
-    } else if VG_STR_CLO(arg, "--include", tData.filtstr) {
+    } else if VG_STR_CLO(arg, "--include", tmp_string) {
+        tData.filtstr = (HChar*) tmp_string;
         tData.filter = MT_FILTINCL;
     } else if VG_INT_CLO(arg, "--mod-load-time", tData.modMemLoadTime) {}
     else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
     else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
     else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
     else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
+    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
+#ifdef FITIN_WITH_LUA 
+    else if VG_STR_CLO(arg, "--control-script", tmp_string) {
+        tData.lua_script = (HChar*) tmp_string;
+    }
+#endif
     else {
         return False;
     }
@@ -236,18 +289,25 @@ static Bool fi_process_cmd_line_option(Char *arg) {
 /* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
-        "    --fnname=<name>           monitor instructions in functon <name> \n"
-        "                              [main]\n"
-        "    --include=<dir>           monitor instructions whci have debug   \n"
-        "                              information from this directory        \n"
-        "    --mod-load-time=<number>  modify at a given load time [0]        \n"
-        "    --mod-bit=<number>        modify the given bit of the target     \n"
-        "    --inst-limit=<number>     the maximum numbers of instructions to \n"
-        "                              be executed. To prevent endless loops. \n"
+#ifdef FITIN_WITH_LUA
+        "    --control-script=<path>   A control script written in Lua.       \n"
+        "                              Contains control callbacks.            \n"
+#else
         "    --golden-run=[yes|no]     States whether this is the golden run. \n"
         "                              The golden run just monitors, no modify\n"
-        "    --persist-flip=[yes|no]   writes flipped data back to its memory \n"
-        "                              origin\n"
+        "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
+        "                              origin.\n"
+        "    --fnname=<name>           Monitor instructions in functon <name> \n"
+        "                              [Main].\n"
+        "    --include=<dir>           Monitor instructions which have debug  \n"
+        "                              information from this directory.       \n"
+        "    --mod-load-time=<number>  Modify at a given load time [0].       \n"
+        "    --mod-bit=<number>        Modify the given bit of the target.    \n"
+        "    --inst-limit=<number>     The maximum numbers of instructions to \n"
+        "                              be executed. To prevent endless loops. \n"
+        "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
+        "                              vant: No need for macros.\n"
+#endif
     );
 }
 
@@ -258,8 +318,96 @@ static void fi_print_debug_usage(void) {
     );
 }
 
+#ifdef FITIN_WITH_LUA
+/* --------------------------------------------------------------------------*/
+static const HChar* testable_lua_functions[] = {
+    "before_start",
+    "after_end",
+    "next_block",
+    "treat_superblock",
+    "monitor_address",
+    "flip_value"
+};
+
+/* --------------------------------------------------------------------------*/
+static void exit_for_invalid_lua(void) {
+    VG_(printf)("Cannot launch FITIn without valid --control-script!\n");
+    VG_(exit)(1);
+}
+
+/* --------------------------------------------------------------------------*/
+static const luaL_Reg fitin_lualibs[] = {
+    {"_G", luaopen_base},
+    {LUA_LOADLIBNAME, luaopen_package},
+    {LUA_TABLIBNAME, luaopen_table},
+    {LUA_IOLIBNAME, luaopen_io},
+    {LUA_OSLIBNAME, luaopen_os},
+    {LUA_STRLIBNAME, luaopen_string},
+    {LUA_BITLIBNAME, luaopen_bit32},
+    {LUA_MATHLIBNAME, luaopen_math},
+    {NULL, NULL}
+};
+
+/* --------------------------------------------------------------------------*/
+static void init_lua(void) {
+    const luaL_Reg *lib = NULL;
+    tData.lua = luaL_newstate();
+
+    /* Happenes on latest FreeBSD, not solved yet. */
+    if(tData.lua == NULL) {
+        VG_(printf)("Failed to initialize Lua!\n");
+        VG_(exit)(1);
+    }
+
+    for (lib = fitin_lualibs; lib->func; lib++) {
+        luaL_requiref(tData.lua, lib->name, lib->func, 1);
+        lua_pop(tData.lua, 1); 
+    }
+    
+    /* Register `lua_persist_flip` to be callable. */
+    lua_pushcfunction(tData.lua, lua_persist_flip);
+    lua_setglobal(tData.lua, "persist_flip");
+
+    lua_pushcfunction(tData.lua, lua_flip_on_memory);
+    lua_setglobal(tData.lua, "flip_on_memory");
+
+    /* Attempt to open control-script file. */
+    if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
+        exit_for_invalid_lua();
+    }
+
+    Int i = 0;
+    UInt cb_table_size = sizeof(testable_lua_functions) / sizeof(HChar*);
+    /* Check for available functions and set bits. */
+    for(; i < cb_table_size; ++i) {
+        lua_getglobal(tData.lua, testable_lua_functions[i]);
+        if(lua_isfunction(tData.lua, -1)) {
+            tData.available_callbacks |= 1 << i;
+        }
+        lua_remove(tData.lua, -1);
+    }
+}
+#endif
+
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
+    if(VG_(clo_verbosity) > 1) {
+        VG_(needs_var_info)();
+    }
+#ifdef FITIN_WITH_LUA
+    if(tData.lua_script != NULL) {
+        init_lua();
+        
+        if(tData.available_callbacks & 1) {
+            lua_getglobal(tData.lua, "before_start");
+            if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
+                VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+            }
+        }
+    } else {
+        exit_for_invalid_lua();
+    }
+#endif
 }
 
 /**
@@ -274,34 +422,59 @@ static void fi_post_clo_init(void) {
 /* --------------------------------------------------------------------------*/
 static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
-                                         SizeT size) {
-    LoadState state = (LoadState) { False, dataAddr, 0 };
+                                         IRType ty) {
+    LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
     Monitorable key;
     Word first, last, state_list_size = VG_(sizeXA)(td->load_states);
+    Int size = sizeofIRType(ty);
 
     tl_assert(state_list_size != LOAD_STATE_INVALID_INDEX);
 
-    /* Stop doing anything after the injection. */
-    if(td->injections > 0) {
-        return LOAD_STATE_INVALID_INDEX;
-    }
+    state.size = state.original_size = size;
 
-    key.monAddr = dataAddr;
+    /* Discard-note if no longer supposed to run. */
+    if(!td->runtime_active) {
+        state.full_size = size;
+        state.relevant = False;
 
-    if(VG_(clo_verbosity) > 1) {
-        VG_(printf)("[FITIn] Load: %p (size: %lu)\n", (void*) dataAddr, (unsigned long) size);
+        VG_(addToXA)(td->load_states, &state);
+
+        return state_list_size;
     }
 
     // iterate over monitorables list
-    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+#ifndef FITIN_WITH_LUA
+    if(td->ignore_monitorables) {
+        state.relevant = True;
+        state.full_size = size;
+    } else {
+#endif
+        key.monAddr = dataAddr;
+        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
-        if(mon->monValid) {
-            state.relevant = True;
-            state.size = size;
-            state.full_size = mon->monSize;
+            if(mon->monValid) {
+                state.relevant = True;
+                state.full_size = mon->monSize;
+            }
         }
+#ifndef FITIN_WITH_LUA
     }
+#endif
+
+#ifdef FITIN_WITH_LUA
+    if(td->available_callbacks & 16) {
+        lua_getglobal(td->lua, "monitor_address");
+        lua_pushinteger(td->lua, dataAddr);
+        lua_pushboolean(td->lua, state.relevant);
+        if(lua_pcall(td->lua, 2, 1, 0) == 0) {
+            state.relevant = lua_toboolean(td->lua, -1);
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(td->lua, -1));
+        }
+        lua_pop(td->lua, 1);
+    }
+#endif
 
     VG_(addToXA)(td->load_states, &state);
 
@@ -323,10 +496,9 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
         IRStmt *st;
         LoadData *load_data = VG_(malloc)("fi.reg.load_data.intermediate", sizeof(LoadData));
   
-        Int size = sizeofIRType(expr->Iex.Load.ty);
         args = mkIRExprVec_3(mkIRExpr_HWord((HWord) td),
                              expr->Iex.Load.addr,
-                             mkIRExpr_HWord(size));
+                             mkIRExpr_HWord(expr->Iex.Load.ty));
         di = unsafeIRDirty_0_N(3,
                                "preLoadHelper",
                                VG_(fnptr_to_fnentry)(&preLoadHelper),
@@ -338,6 +510,7 @@ static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
 
         load_data->ty = expr->Iex.Load.ty;
         load_data->addr = expr->Iex.Load.addr;
+        load_data->end = expr->Iex.Load.end;
         load_data->state_list_index = di->tmp;
 
         return load_data;
@@ -362,6 +535,233 @@ static inline void initialize_register_lists(Int size) {
     VG_(memset)(tData.reg_load_sizes, 0, sizeof(SizeT) * size * 2);
 }
 
+#define ACCESSES(expr) accesses_temp((expr), tmp, queue, i, depth, is_WrTmp)
+
+/* --------------------------------------------------------------------------*/
+static inline Bool accesses_temp(IRExpr *expr,
+                                 IRTemp tmp,
+                                 XArray *queue,
+                                 UInt i,
+                                 UInt *depth,
+                                 Bool is_WrTmp) {
+    *depth = *depth + 1;
+
+    switch(expr->tag) {
+        case Iex_GetI:
+            return ACCESSES(expr->Iex.GetI.ix);
+        case Iex_RdTmp:
+            return expr->Iex.RdTmp.tmp == tmp;
+        case Iex_Qop:
+            return ACCESSES(expr->Iex.Qop.details->arg1) ||
+                  ACCESSES(expr->Iex.Qop.details->arg2) ||
+                  ACCESSES(expr->Iex.Qop.details->arg3) ||
+                  ACCESSES(expr->Iex.Qop.details->arg4);
+        case Iex_Triop:
+            return ACCESSES(expr->Iex.Triop.details->arg1) ||
+                  ACCESSES(expr->Iex.Triop.details->arg2) ||
+                  ACCESSES(expr->Iex.Triop.details->arg3);
+        case Iex_Binop:
+            return ACCESSES(expr->Iex.Binop.arg1) ||
+                  ACCESSES(expr->Iex.Binop.arg2);
+        case Iex_Unop:
+            return ACCESSES(expr->Iex.Unop.arg);
+        case Iex_ITE:
+            return ACCESSES(expr->Iex.ITE.cond) ||
+                  ACCESSES(expr->Iex.ITE.iftrue) ||
+                  ACCESSES(expr->Iex.ITE.iffalse);
+        case Iex_CCall: {
+            Bool any = False;
+            IRExpr **expr_ptr = expr->Iex.CCall.args;
+            while(*expr_ptr != NULL && !any) {
+                any = ACCESSES(*expr_ptr);
+                expr_ptr++;
+            }
+            return any;
+        }
+        default:
+            return False;
+    }
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool is_cast_unop(IROp op) {
+    return (op >= Iop_DivModU64to32 && op <= Iop_1Sto64) ||
+           (op >= Iop_F64toI16S && op <= Iop_F64toF32) ||
+           (op >= Iop_F64HLtoF128 && op <= Iop_F128LOtoF64) ||
+           (op >= Iop_I32StoF128 && op <= Iop_F128toF32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux8 && op <= Iop_NarrowBin32to16x4) ||
+           (op >= Iop_D32toD64 && op <= Iop_D128toF128) ||
+           (op >= Iop_D64HLtoD128 && op <= Iop_D128LOtoD64) ||
+           (op >= Iop_I32UtoFx4 && op <= Iop_QFtoI32Sx4_RZ) ||
+           (op >= Iop_F32toF16x4 && op <= Iop_F16toF32x4) ||
+           (op >= Iop_V128to64 && op <= Iop_V128to32) ||
+           (op >= Iop_QNarrowBin16Sto8Ux16 && op <= Iop_Widen32Sto64x2) ||
+           (op >= Iop_V256to64_0 && Iop_V128HLtoV256);
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool found_temp_use(XArray *queue,
+                                  QueuedLoad *tuple,
+                                  IRSB *sb,
+                                  IRTemp *pre_reg_markers,
+                                  IRTemp original_tmp) {
+    UInt i = tuple->i, d = 0;
+    UInt *depth = &d;
+    Bool found = False;
+    IRTemp tmp = tuple->t;
+
+    for(; i < sb->stmts_used && !found; ++i) {
+        IRStmt *st = sb->stmts[i];
+        Bool is_WrTmp = False;
+        d = 0;
+
+        switch(st->tag) {
+            case Ist_WrTmp: {
+                IRExpr *expr = st->Ist.WrTmp.data;
+                if(expr->tag == Iex_Get) {
+                    if(pre_reg_markers[expr->Iex.Get.offset*2] != IRTemp_INVALID) {
+                        QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                        VG_(addToXA)(queue, &q);
+                    }
+                } else {
+                    is_WrTmp = True;
+                    found = ACCESSES(st->Ist.WrTmp.data);
+                    if(found) {
+
+                        if(d == 1) {
+                            /* Alias. */
+                            QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                            VG_(addToXA)(queue, &q);
+                            found = False;
+                        } else {
+                            if(expr->tag == Iex_Unop && is_cast_unop(expr->Iex.Unop.op)) {
+                                QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
+                                VG_(addToXA)(queue, &q);
+                                found = False;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            case Ist_Store:
+                /* Data here as well, at runtime we will check the destination. */
+                found = ACCESSES(st->Ist.Store.addr) || ACCESSES(st->Ist.Store.data);
+                break;
+            case Ist_Dirty: {
+                found = ACCESSES(st->Ist.Dirty.details->guard);
+                 IRExpr **arg_ptr = st->Ist.Dirty.details->args;
+                while(*arg_ptr != NULL && !found) {
+                    found = ACCESSES(*arg_ptr);
+                    arg_ptr++;
+                }
+                if(!found && st->Ist.Dirty.details->mFx != Ifx_None) {
+                    found = ACCESSES(st->Ist.Dirty.details->mAddr);
+                }
+                break;
+            }
+            case Ist_Put: {
+                Bool local_found = ACCESSES(st->Ist.Put.data);
+                IRExpr *expr = st->Ist.Put.data;
+                if(local_found && d == 1) {
+                    SizeT size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
+                    UInt j = 0;
+                    for(; j < size; ++j) {
+                        pre_reg_markers[(st->Ist.Put.offset + j) * 2] = expr->Iex.RdTmp.tmp;
+                        pre_reg_markers[(st->Ist.Put.offset + j) * 2 + 1] = original_tmp;
+                    }
+                } else {
+                    SizeT size = 0;
+                    if(expr->tag == Iex_Const) {
+                        IRType ty = typeOfIRConst(expr->Iex.Const.con);
+                        size = sizeofIRType(ty);
+                    } else if(expr->tag == Iex_RdTmp && d == 1) {
+                        size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
+                    } else {
+                        tl_assert(0);
+                    }
+                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset * 2, IRTemp_INVALID, size * sizeof(IRTemp));
+                } 
+
+                break;
+            }
+            case Ist_PutI:
+                found = ACCESSES(st->Ist.PutI.details->ix) ||
+                   ACCESSES(st->Ist.PutI.details->data);
+                break;
+            case Ist_CAS:
+                found = ACCESSES(st->Ist.CAS.details->addr) ||
+                    ACCESSES(st->Ist.CAS.details->expdLo) ||
+                    ACCESSES(st->Ist.CAS.details->dataLo);
+                if(!found && st->Ist.CAS.details->expdHi != NULL) {
+                    found = ACCESSES(st->Ist.CAS.details->expdHi);
+                }
+                if(!found && st->Ist.CAS.details->dataHi != NULL) {
+                    found = ACCESSES(st->Ist.CAS.details->dataHi);
+                }
+                break;
+            case Ist_LLSC:
+                found = ACCESSES(st->Ist.LLSC.addr);
+
+                if(!found && st->Ist.LLSC.storedata != NULL) {
+                    found = ACCESSES(st->Ist.LLSC.storedata);
+                }
+                break;
+            case Ist_Exit:
+                found = ACCESSES(st->Ist.Exit.guard);
+                break;
+            default:
+                break;
+       }
+    }
+    return found;
+}
+
+/* --------------------------------------------------------------------------*/
+static inline Bool observed_load_use(IRTemp tmp,
+                                     IRSB *sbIn,
+                                     UInt i,
+                                     IRTemp **pre_reg_markers,
+                                     SizeT reg_table_size) {
+    IRStmt *st = sbIn->stmts[i];
+    IRExpr *expr = st->Ist.WrTmp.data;
+
+    if(expr->tag == Iex_Load) {
+        XArray *queue = VG_(newXA)(VG_(malloc),
+                                   "fi.intrumentation.load_check",
+                                   VG_(free),
+                                   sizeof(QueuedLoad));
+        QueuedLoad tuple = (QueuedLoad) { tmp, i };
+        VG_(addToXA)(queue, &tuple);
+
+        IRTemp *copy = VG_(malloc)("fi.instrumentation.copy", reg_table_size);
+        VG_(memcpy)(copy, *pre_reg_markers, reg_table_size);
+
+        Word j = 0;
+        Bool found = False;
+        /* Always check size as this might grow. */
+        for(; j < VG_(sizeXA)(queue) && !found; ++j) {
+            QueuedLoad *q = VG_(indexXA)(queue, j);
+            found = found_temp_use(queue, q, sbIn, *pre_reg_markers, tmp);
+        }
+
+        /* Restore old table, the new one might contain remainders that we
+        * don't want to cover right now: If a branched value of this one goes 
+        * into a PUT, live with it. For now, look at the edge case of
+        * Load -> Put -> Syscall */
+        if(found) {
+            VG_(free)(*pre_reg_markers);
+            *pre_reg_markers = copy;
+        }
+
+        VG_(deleteXA)(queue);
+
+        return found;
+    }
+
+    return False;
+}
+
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
                                                          loads,\
                                                          replacements,\
@@ -381,15 +781,21 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                            IRSB *sbIn,
                            VexGuestLayout *layout,
                            VexGuestExtents *vge,
+                           VexArchInfo *archInfo,
                            IRType gWordTy, IRType hWordTy ) {
     IRSB      *sbOut;
     IRStmt    *st;
     IRExpr **argv;
     IRDirty *di;
-    int i;
+    UInt i;
     XArray *loads = NULL, *replacements = NULL;
+    Bool monitor_sb = False, monitoring_checked = False;
 
-    /* We don't currently support this case. */
+    if(!tData.runtime_active) {
+        return sbIn;
+    }
+
+    /* We don't currently support this case. - Really? */
     if (gWordTy != hWordTy) {
         VG_(tool_panic)("host/guest word size mismatch");
     }
@@ -399,6 +805,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         initialize_register_lists(layout->total_sizeB);
         tData.register_lists_loaded = True;
         tData.gWordTy = gWordTy;
+    } else {
+        /* Reset all entries. */
+        VG_(memset)(tData.reg_temp_occupancies, 0xFF, sizeof(IRTemp) * layout->total_sizeB);
     }
 
     loads = VG_(newXA)(VG_(malloc), 
@@ -414,6 +823,10 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                               sizeof(ReplaceData)); 
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
+
+    SizeT reg_table_size = sizeof(IRTemp) * layout->total_sizeB;
+    IRTemp *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", reg_table_size);
+    VG_(memset)(pre_reg_markers, IRTemp_INVALID, reg_table_size);
 
     /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -431,8 +844,10 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         if(st->tag == Ist_IMark) {
-            tData.instAddr = st->Ist.IMark.addr;
-            tData.monitoredInst = monitorInst(tData.instAddr);
+            if(!monitoring_checked) {
+                monitor_sb = monitorInst(st->Ist.IMark.addr);
+                monitoring_checked = True;
+            }
 
             /* Add the counter to every single IMark, no matter where. */
             argv = mkIRExprVec_0();
@@ -441,17 +856,24 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         /* Check for correct function. */
-        if(tData.monitoredInst) {
+        if(monitor_sb) {
             switch (st->tag) {
                 case Ist_Put:
-                    /* PUTting something should not count as access. */
-                    JUST_REPLACE_ACCESS(st->Ist.Put.data);
+                    if(!fi_reg_set_passive_occupancy(&tData,
+                                                     loads,
+                                                     pre_reg_markers,
+                                                     st->Ist.Put.offset,
+                                                     st->Ist.Put.data,
+                                                     sbOut)) {
+                        /* PUTting something should not count as access. */
+                        JUST_REPLACE_ACCESS(st->Ist.Put.data);
 
-                    fi_reg_set_occupancy(&tData,
-                                         loads,
-                                         st->Ist.Put.offset,
-                                         st->Ist.Put.data,
-                                         sbOut);
+                        fi_reg_set_occupancy(&tData,
+                                             loads,
+                                             st->Ist.Put.offset,
+                                             st->Ist.Put.data,
+                                             sbOut);
+                    }
                     break;
                 case Ist_PutI:
                     /* The impact of those operation to the shadow registers
@@ -460,34 +882,23 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
-                    /* IMPORTANT: please see fi_reg_add_load_on_resize.*/
-                    if(tData.gWordTy == Ity_I64 && 
-                            fi_reg_add_load_on_resize(&tData,
-                                                      loads,
-                                                      replacements,
-                                                      &(st->Ist.WrTmp.data),
-                                                      st->Ist.WrTmp.tmp,
-                                                      sbOut)) {
-                        break;
-                    }
-
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
+                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, &pre_reg_markers, reg_table_size);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
-                        /* This will ignore anything greater than platform size. */
-                        if(load_data->ty <= tData.gWordTy) {
-                            load_data->dest_temp = st->Ist.WrTmp.tmp;
-                            fi_reg_add_temp_load(loads, load_data);
-                        } 
+                        load_data->dest_temp = st->Ist.WrTmp.tmp;
+                        load_data->passive = !used;
+                        fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(&tData, 
+                        fi_reg_add_load_on_get(&tData,
                                                loads,
                                                st->Ist.WrTmp.tmp,
                                                typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
-                                               st->Ist.WrTmp.data);
+                                               st->Ist.WrTmp.data,
+                                               sbOut);
                     }
                     break;
                 }
@@ -526,16 +937,19 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                                                                sbOut);
                         }
                     }
-
                     /* Check for reads from registers. */
                     fi_reg_add_pre_dirty_modifiers(&tData, st->Ist.Dirty.details, sbOut);
                     break;
                 case Ist_CAS:                    
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->addr);
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->expdLo);
-                    INSTRUMENT_ACCESS(st->Ist.CAS.details->expdHi);
                     INSTRUMENT_ACCESS(st->Ist.CAS.details->dataLo);
-                    INSTRUMENT_ACCESS(st->Ist.CAS.details->dataHi);
+                    if(st->Ist.CAS.details->expdHi != NULL) {
+                        INSTRUMENT_ACCESS(st->Ist.CAS.details->expdHi);
+                    }
+                    if(st->Ist.CAS.details->dataHi != NULL) {
+                        INSTRUMENT_ACCESS(st->Ist.CAS.details->dataHi);
+                    }
                     break;
                 case Ist_LLSC:                
                     INSTRUMENT_ACCESS(st->Ist.LLSC.addr);
@@ -557,6 +971,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
 
     VG_(deleteXA)(replacements);
     VG_(deleteXA)(loads);
+    VG_(free)(pre_reg_markers);
 
     return sbOut;
 }
@@ -597,10 +1012,20 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-    VG_(printf)("[FITIn] Totals (of monitored code blocks):\n");
-    VG_(printf)("[FITIn] Overall variable accesses: %lu\n", (unsigned long) tData.loads);
-    VG_(printf)("[FITIn] Monitored variable accesses: %lu\n", (unsigned long) tData.monLoadCnt);
-    VG_(printf)("[FITIn] Instructions executed: %lu\n", (unsigned long) tData.instCnt);
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 2) {
+        lua_getglobal(tData.lua, "after_end");
+        if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+    }
+    lua_close(tData.lua);
+#endif
+
+    VG_(printf)("[FITIn] Totals (of monitored code blocks)\n");
+    VG_(printf)("[FITIn]   Overall variable accesses: %lu\n", (unsigned long) tData.loads);
+    VG_(printf)("[FITIn]   Monitored variable accesses: %lu\n", (unsigned long) tData.monLoadCnt);
+    VG_(printf)("[FITIn]   Instructions executed: %lu\n", (unsigned long) tData.instCnt);
 }
 
 /* --------------------------------------------------------------------------*/
@@ -677,21 +1102,50 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
    small. */
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
+    Int size = VG_(sizeXA)(tData.load_states), i = 0;
+
+    for(; i < size; ++i) {
+        LoadState *state = VG_(indexXA)(tData.load_states, i);
+        if(state->data != NULL) {
+            VG_(free)(state->data);
+        }
+    }
+
     VG_(deleteXA)(tData.load_states);
     tData.load_states = VG_(newXA)(VG_(malloc),
                                    "fi.reg.loadStates.renew",
                                    VG_(free),
                                    sizeof(LoadState));
+
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 4) {
+        lua_getglobal(tData.lua, "next_block");
+        lua_pushinteger(tData.lua, tData.instCnt);
+        if(lua_pcall(tData.lua, 1, 1, 0) == 0) {
+            Int result = lua_tointeger(tData.lua, -1);
+
+            if(result == 1) {
+                tData.runtime_active = False;
+            } else if(result == 2) {
+                fi_fini(EXIT_STOPPED);
+                VG_(exit)(0);
+            }
+        } else {
+            VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+        }
+        lua_pop(tData.lua, 1);
+    }
+#endif
 }
 
 /* This method will check for every `size` bytes, beginning at `a` whether there
    exists a monitorable. Otherwise, we can't handle bytes that are located away
    from `a`, such as arrays or strings. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
-    if(tData.injections == 0 && part == Vg_CoreSysCall) {
+    if(tData.runtime_active && part == Vg_CoreSysCall) {
         Word first, last;
         Int mem_offset = 0;
 
@@ -712,17 +1166,17 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, Char *s,
 
 /* Callback for mem on ascii data. Passes strlen + 1 to fi_reg_on_mem_read. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
                                    Addr a) {
-    SizeT strlen = VG_(strlen)((Char*) a) + 1;
+    SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
     fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
 /* Callback for register syscalls. */
 /* --------------------------------------------------------------------------*/
-static void fi_reg_on_reg_read(CorePart part, ThreadId tid, Char *s,
+static void fi_reg_on_reg_read(CorePart part, ThreadId tid, const HChar *s,
                                PtrdiffT offset, SizeT size) {
-    if(part == Vg_CoreSysCall) {
+    if(tData.runtime_active && part == Vg_CoreSysCall) {
         UChar *buf = VG_(malloc)("fi.reg.syscall.reg", size);
         VG_(get_shadow_regs_area)(tid, buf, 0, offset, size);
         fi_reg_flip_or_leave_registers(&tData, buf, offset, size);

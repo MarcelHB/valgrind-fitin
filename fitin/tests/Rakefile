@@ -267,12 +267,13 @@ end
 def build_benchmark(dir, files, target)
   build_cpuid(dir)
   begin
+    bits = platform_width
     files.each do |src|
-      sh "#{CC} #{CFLAGS} -g3 -m32 -c #{src} -o #{object_file(src)}"
+      sh "#{CC} #{CFLAGS} -g3 -m#{bits} -c #{src} -o #{object_file(src)}"
     end
     objects = files.map { |src| object_file(src) }
     objects += ["cpuid.o", cpuida(dir)]
-    sh "#{CC} #{LDFLAGS} -m32 -lm -lrt -lc -o #{bin_output(target)} #{objects.join(" ")}"
+    sh "#{CC} #{LDFLAGS} -m#{bits} -o #{bin_output(target)} #{objects.join(" ")} -lm -lc -lrt"
   rescue
     puts "[ERROR] Building of benchmark #{target} failed"
   end
@@ -282,7 +283,7 @@ end
 def build_cpuid(dir)
   bits = platform_width
   file = File.join(dir, "common_#{bits}bit", "cpuidc#{bits == "64" ? "64" : ""}.c")
-  sh "#{CC} #{CFLAGS} -m32 -c #{file} -o cpuid.o"
+  sh "#{CC} #{CFLAGS} -m#{bits} -c #{file} -o cpuid.o"
 end
 
 #------------------------------------------------------------------------------
@@ -300,12 +301,9 @@ end
 
 #------------------------------------------------------------------------------
 def platform_width
-  # 64 bit causes crashes on full --include= :(
-  #if CFLAGS =~ /-m(\d{2})/
-  #  return $1
-  #end
-
-  "32"
+  if CFLAGS =~ /-m(\d{2})/
+    return $1
+  end
 end
 
 #------------------------------------------------------------------------------
@@ -326,8 +324,15 @@ def run_test(test)
   out = ""
 
   begin
+    script = if test["script"]
+               "$PWD/#{test["script"]}"
+             else
+                "#{test["output"]}.lua"
+             end
+    params = "--control-script=#{script} #{test["vg_params"]}"
+
     silent do 
-      out = %x(#{VALGRIND} --log-file=#{log_file.path} #{VG_FLAGS} #{test["vg_params"]} #{bin_output(test["output"])} 2>&1)
+      out = %x(#{VALGRIND} --log-file=#{log_file.path} #{VG_FLAGS} #{params} #{bin_output(test["output"])} 2>&1)
     end
 
     if $?.exitstatus == 0
