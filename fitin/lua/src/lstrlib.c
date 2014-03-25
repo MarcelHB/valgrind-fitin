@@ -791,6 +791,18 @@ static int str_gsub (lua_State *L) {
 ** 'string.format'; LUA_INTFRM_T is the integer type corresponding to
 ** the previous length
 */
+#ifdef FITIN_WITH_LUA
+
+#include "lua_vg.h"
+
+#define LUA_INTFRMLEN "ll"
+#define LUA_INTFRM_T  Long
+
+#define LUA_FLTFRMLEN ""
+#define LUA_FLTFRM_T Long
+
+#else
+
 #if !defined(LUA_INTFRMLEN)	/* { */
 #if defined(LUA_USE_LONGLONG)
 
@@ -818,6 +830,7 @@ static int str_gsub (lua_State *L) {
 
 #endif
 
+#endif
 
 /* maximum size of each formatted item (> len(format('%99.99f', -1e308))) */
 #define MAX_ITEM	512
@@ -926,7 +939,11 @@ static int str_format (lua_State *L) {
         }
         case 'o': case 'u': case 'x': case 'X': {
           lua_Number n = luaL_checknumber(L, arg);
+#ifdef FITIN_WITH_LUA
+          ULong ni = (ULong)n;
+#else
           unsigned LUA_INTFRM_T ni = (unsigned LUA_INTFRM_T)n;
+#endif
           lua_Number diff = n - (lua_Number)ni;
           luaL_argcheck(L, -1 < diff && diff < 1, arg,
                         "not a non-negative number in proper range");
