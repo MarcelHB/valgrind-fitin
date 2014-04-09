@@ -11,6 +11,7 @@ Makefile
 *.so
 *.log
 *.pc
+*.mod
 *.deps/
 aclocal.m4
 compile
