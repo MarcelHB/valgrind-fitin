@@ -1,0 +1,48 @@
+Fortran bridge for FITIn
+=========================
+
+This can embed FITIn into Fortran source code in a similar fashion to C code.
+
+
+BUILD
+======
+
+0.) Create Valgrind and FITIn.
+
+1.) Create the object file of the C-Code. You need to add the headers of 
+    Valgrind:
+
+    $ cc -I<path to Valgrind include> -c fi_client.c -o fi_client.o
+
+2.) Create the fortran interface and module.
+
+    $ gfortran -c fitin.F95 -o fitin.o
+
+
+USE
+====
+
+1.) In the Fortran code where you want to use FITIn, place where suitable:
+    
+    #include "fi_client.F95"
+
+2.) In your subroutine or program, add to the preamble:
+
+    USE FITIN
+
+3.) Place where desired:
+ 
+    call FITIN_MONITOR_VARIABLE(<variable>)
+
+    and to unmonitor:
+
+    call FITIN_UNMONITOR_VARIABLE(<variable>)
+
+4.) If you rely on procedure names, do not forget to enable debug symbols
+    (-g on gfortran).
+
+5.) Add the this location to the included directories on compiling for
+    fi_client.F95.
+
+5.) Add fitin.o and fi_client.o to to your linking command.
+
