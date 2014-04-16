@@ -722,7 +722,7 @@ static inline Bool observed_load_use(IRTemp tmp,
                                      IRSB *sbIn,
                                      UInt i,
                                      IRTemp **pre_reg_markers,
-                                     SizeT reg_table_size) {
+                                     SizeT pre_reg_table_size) {
     IRStmt *st = sbIn->stmts[i];
     IRExpr *expr = st->Ist.WrTmp.data;
 
@@ -734,8 +734,8 @@ static inline Bool observed_load_use(IRTemp tmp,
         QueuedLoad tuple = (QueuedLoad) { tmp, i };
         VG_(addToXA)(queue, &tuple);
 
-        IRTemp *copy = VG_(malloc)("fi.instrumentation.copy", reg_table_size);
-        VG_(memcpy)(copy, *pre_reg_markers, reg_table_size);
+        IRTemp *copy = VG_(malloc)("fi.instrumentation.copy", pre_reg_table_size);
+        VG_(memcpy)(copy, *pre_reg_markers, pre_reg_table_size);
 
         Word j = 0;
         Bool found = False;
@@ -824,9 +824,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
 
-    SizeT reg_table_size = sizeof(IRTemp) * layout->total_sizeB;
-    IRTemp *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", reg_table_size);
-    VG_(memset)(pre_reg_markers, IRTemp_INVALID, reg_table_size);
+    SizeT pre_reg_table_size = sizeof(IRTemp) * layout->total_sizeB * 2;
+    IRTemp *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", pre_reg_table_size);
+    VG_(memset)(pre_reg_markers, IRTemp_INVALID, pre_reg_table_size);
 
     /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
@@ -884,7 +884,7 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                 case Ist_WrTmp: {
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
-                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, &pre_reg_markers, reg_table_size);
+                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, &pre_reg_markers, pre_reg_table_size);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
