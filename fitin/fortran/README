@@ -41,8 +41,30 @@ USE
 4.) If you rely on procedure names, do not forget to enable debug symbols
     (-g on gfortran).
 
-5.) Add the this location to the included directories on compiling for
+5.) Add this directory to the include-path on compiling for having
     fi_client.F95.
 
 5.) Add fitin.o and fi_client.o to to your linking command.
+
+
+NOTES
+======
+
+As we performed experiments on F90 code using high optimziation levels 
+(-O3), we want to provide some hints:
+
+* "main" in C is "MAIN__" in Fortran.
+* As FITIn macros can be placed behind the end of the preamble of
+  variables exclusively, in -O3, the variables may have vanished into
+  registers already. This can be noticed when looking at the summary
+  output of FITIn: In case of a single variable or all variables being
+  ghostly, it says "Monitored variable accesses: 0". SOLUTION: Declare
+  the variables in question VOLATILE (On heavy use, this might decrease
+  the performance).
+* Be careful with randomized flips, even if the code does not seem to
+  use pointers or field indices. Often, Fortran assembly makes use of
+  them anyway. Flipping such values will result in segmentation faults.
+* On difficulties scheduling flips precisely, you should read the
+  assembly code of the program: Sometimes, there are unforeseen copy
+  or cast operations.
 

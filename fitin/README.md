@@ -36,6 +36,10 @@ Things that do not count as access (with ```a``` being monitored):
   start address at execution time (but ```a``` is wide enough, e.g. by
   ```int a;```).
 
+## Fortran
+
+Please have a look at ```fortran/README```.
+
 ## Use
 
 FITIn recommends annotating source code in order to work conveniently.
