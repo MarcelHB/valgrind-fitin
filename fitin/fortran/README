@@ -61,6 +61,22 @@ As we performed experiments on F90 code using high optimziation levels
   ghostly, it says "Monitored variable accesses: 0". SOLUTION: Declare
   the variables in question VOLATILE (On heavy use, this might decrease
   the performance).
+* If you use Fortran variables from different code modules and you want
+  to monitor them locally, you can try aliasing them by local (volatile)
+  variables:
+
+  USE extmod, ONLY: msvctr
+
+  INTEGER, VOLATILE :: msvct_r
+
+  msvct_r = msvctr
+
+  #define mscvtr msvct_r
+
+  FITIN_MONITOR_VARIABLE(msvct_r)
+  ...
+  FITIN_UNMONITOR_VARIABLE(msvct_r)
+
 * Be careful with randomized flips, even if the code does not seem to
   use pointers or field indices. Often, Fortran assembly makes use of
   them anyway. Flipping such values will result in segmentation faults.
