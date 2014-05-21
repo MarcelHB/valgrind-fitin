@@ -596,7 +596,7 @@ static inline Bool is_cast_unop(IROp op) {
            (op >= Iop_F32toF16x4 && op <= Iop_F16toF32x4) ||
            (op >= Iop_V128to64 && op <= Iop_V128to32) ||
            (op >= Iop_QNarrowBin16Sto8Ux16 && op <= Iop_Widen32Sto64x2) ||
-           (op >= Iop_V256to64_0 && Iop_V128HLtoV256);
+           (op >= Iop_V256to64_0 && op <= Iop_V128HLtoV256);
 }
 
 /* --------------------------------------------------------------------------*/
