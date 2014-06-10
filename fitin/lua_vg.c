@@ -115,7 +115,7 @@ extern int vg_toupper(int n) {
 /* Taken from GNU C Library, stdlib/rand_r.c, LGPLv2.1+ */
 /* --------------------------------------------------------------------------*/
 static int random(int seed) {
-  unsigned int next = rseed;
+  unsigned int next = seed;
   int result;
 
   next *= 1103515245;

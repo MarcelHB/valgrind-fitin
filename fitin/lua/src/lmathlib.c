@@ -231,7 +231,11 @@ static int math_max (lua_State *L) {
 static int math_random (lua_State *L) {
   /* the `%' avoids the (rare) case of r==1, and is needed also because on
      some systems (SunOS!) `rand()' may return a value larger than RAND_MAX */
+#ifdef FITIN_WITH_LUA
+  lua_Number r = (lua_Number)(rand()%RAND_MAX);
+#else
   lua_Number r = (lua_Number)(rand()%RAND_MAX) / (lua_Number)RAND_MAX;
+#endif
   switch (lua_gettop(L)) {  /* check number of arguments */
     case 0: {  /* no arguments */
       lua_pushnumber(L, r);  /* Number between 0 and 1 */
@@ -241,7 +245,7 @@ static int math_random (lua_State *L) {
       lua_Number u = luaL_checknumber(L, 1);
       luaL_argcheck(L, (lua_Number)1.0 <= u, 1, "interval is empty");
 #ifdef FITIN_WITH_LUA
-      lua_pushnumber(L, floor(r*u) + (lua_Number)(1.0));  /* [1, u] */
+      lua_pushnumber(L, r % u + 1);  /* [1, u] */
 #else
       lua_pushnumber(L, l_mathop(floor)(r*u) + (lua_Number)(1.0));  /* [1, u] */
 #endif
@@ -252,7 +256,7 @@ static int math_random (lua_State *L) {
       lua_Number u = luaL_checknumber(L, 2);
       luaL_argcheck(L, l <= u, 2, "interval is empty");
 #ifdef FITIN_WITH_LUA
-      lua_pushnumber(L, floor(r*(u-l+1)) + l);  /* [l, u] */
+      lua_pushnumber(L, r % (u-l+1) + l);  /* [l, u] */
 #else
       lua_pushnumber(L, l_mathop(floor)(r*(u-l+1)) + l);  /* [l, u] */
 #endif
