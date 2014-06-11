@@ -109,5 +109,10 @@
         "files": ["sample18.c"],
         "output": "sample18",
         "expected": "c d"
+    },{
+        "title": "Provides a not-so-bad RNG in Lua",
+        "files": ["sample1.c"],
+        "output": "sample19",
+        "expected": "36"
     }]
 }
