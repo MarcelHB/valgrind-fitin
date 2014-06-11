@@ -100,9 +100,10 @@
         "cflags": "-g",
         "expected": "-0.25"
     },{
-        "title": "ASM written test to demonstrate work of replacing algo. (AMD64-test only)",
+        "title": "ASM written test to demonstrate work of replacing algo. (SSE CPUs only)",
         "files": ["sample17.c"], 
         "output": "sample17",
+        "cflags": "-msse",
         "expected": "1.50 3.00"
     },{
         "title": "Can manually flip bits elsewhere from inside a callback",
