@@ -32,7 +32,7 @@ flip_value = function(state, address, counter, size)
                buckets[3] > 0 and
                buckets[4] > 0 and
                buckets[5] > 0 and
-               buckets[6] > 0
+               buckets[6] > 0 and counter == 3
 
   if hypothesis then
     return {32}
