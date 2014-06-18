@@ -30,17 +30,18 @@
 #define __FITIN_CLIENT_H
 
 #include "valgrind.h"
-		
-typedef	enum {
-		VG_USERREQ__MON_VAR = VG_USERREQ_TOOL_BASE('F','I'),
-		VG_USERREQ__MON_ARR,
-		VG_USERREQ__MON_MEM,
-		VG_USERREQ__UMON_VAR,
-		VG_USERREQ__UMON_ARR,
-		VG_USERREQ__UMON_MEM,
-		VG_USERREQ__INJ_B_VAR,
-		VG_USERREQ__INJ_B_MEM,
-		VG_USERREQ__CINJ_B_VAR,
+
+typedef  enum {
+    VG_USERREQ__MON_VAR = VG_USERREQ_TOOL_BASE('F','I'),
+    VG_USERREQ__MON_ARR,
+    VG_USERREQ__MON_MEM,
+    VG_USERREQ__UMON_VAR,
+    VG_USERREQ__UMON_ARR,
+    VG_USERREQ__UMON_MEM,
+    VG_USERREQ__INJ_B_VAR,
+    VG_USERREQ__INJ_B_MEM,
+    VG_USERREQ__CINJ_B_VAR,
+    VG_USERREQ__MON_FIELD
 } Vg_FITInClientRequest;
 
 /*
@@ -71,6 +72,17 @@ typedef	enum {
 #define FITIN_MONITOR_MEMORY(mem, size)                               \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__MON_MEM,                 \
                                   (mem), (size), 0, 0, 0)
+
+/*
+ * Triggers the callback monitor_field.
+ *
+ * Requires base address `mem`, total bytes `size`, an array `dims`
+ * holding n entries for n dimension, each one describing the dimension's
+ * size and `dims_size` to be n.
+ */
+#define FITIN_MONITOR_FIELD(mem, size, dims, dims_size) \
+  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__MON_FIELD, (mem), (size), \
+                                  (dims), (dims_size), 0)
 
 /*
    Unregister the given variable for FITIn handling
@@ -110,7 +122,7 @@ typedef	enum {
  */
 #define FITIN_INJECT_BIT_VARIABLE(var, bit, iteration)                       \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__INJ_B_VAR,                  \
-		  (&(var)), sizeof(var), (bit), (iteration), 0)
+      (&(var)), sizeof(var), (bit), (iteration), 0)
 
 /*
    Inject a bit flip at a given position at a given iteration
@@ -121,7 +133,7 @@ typedef	enum {
  */
 #define FITIN_INJECT_BIT_MEMORY(mem, size, bit, iteration)                       \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__INJ_B_MEM,                  \
-		  (mem), (size), (bit), (iteration), 0)
+      (mem), (size), (bit), (iteration), 0)
 
 /*
    Inject a bit flip at a given position at a given condition
@@ -132,6 +144,6 @@ typedef	enum {
  */
 #define FITIN_COND_INJECT_BIT_MEMORY(mem, size, bit, cond)                       \
   if(cond) VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__INJ_B_MEM,                  \
-		  (mem), (size), (bit), 0, 0)
+      (mem), (size), (bit), 0, 0)
 
 #endif

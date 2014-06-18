@@ -20,7 +20,7 @@
         "output": "sample3",
         "expected": "3"
     },{
-        "title": "Tracks a register tunneled load (x86-test only).",
+        "title": "Tracks a register tunneled load. (x86-test only)",
         "files": ["sample4.c"],
         "output": "sample4",
         "expected": "2"
@@ -43,12 +43,12 @@
         "cflags": "-g",
         "expected": "4"
     },{
-        "title": "Flips on memory syscall with offset (Linux only)",
+        "title": "Flips on memory syscall with offset. (Linux only)",
         "files": ["sample7.c"],
         "output": "sample7",
         "expected": "4"
     },{
-        "title": "Handles Valgrind's dirty helpers (x86-test only).",
+        "title": "Handles Valgrind's dirty helpers. (x86-test only)",
         "files": ["sample8.c"],
         "output": "sample8",
         "expected": "1"
@@ -64,12 +64,12 @@
         "script": "sample9a.lua",
         "expected": "16385"
     },{
-        "title": "Flips memory if used by a Valgrind dirty helper (x86-test only)",
+        "title": "Flips memory if used by a Valgrind dirty helper. (x86-test only)",
         "files": ["sample10.c"],
         "output": "sample10",
         "expected": "0.0"
     },{
-        "title": "Flips on register syscall with offset (Linux only)",
+        "title": "Flips on register syscall with offset. (Linux only)",
         "files": ["sample11.c"],
         "output": "sample11",
         "expected": "012"
@@ -84,12 +84,12 @@
         "output": "sample13",
         "expected": "3.75"
     },{
-        "title": "Can correctly branch on flipped double",
+        "title": "Can correctly branch on flipped double.",
         "files": ["sample14.c"],
         "output": "sample14",
         "expected": "a LE 0"
     },{
-        "title": "Persist float flip on --persist-flip=yes",
+        "title": "Persist float flip on --persist-flip=yes.",
         "files": ["sample15.c"],
         "output": "sample15",
         "expected": "-1.25"
@@ -106,14 +106,19 @@
         "cflags": "-msse",
         "expected": "1.50 3.00"
     },{
-        "title": "Can manually flip bits elsewhere from inside a callback",
+        "title": "Can manually flip bits elsewhere from inside a callback.",
         "files": ["sample18.c"],
         "output": "sample18",
         "expected": "c d"
     },{
-        "title": "Provides a not-so-bad RNG in Lua",
+        "title": "Provides a not-so-bad RNG in Lua.",
         "files": ["sample1.c"],
         "output": "sample19",
         "expected": "36"
+    },{
+        "title": "Allows Lua-side monitoring control.",
+        "files": ["sample20.c"],
+        "output": "sample20",
+        "expected": "0"
     }]
 }

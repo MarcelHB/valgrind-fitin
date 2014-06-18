@@ -51,7 +51,7 @@
 #include <lualib.h>
 #endif
 
-static const unsigned int MAX_STR_SIZE = 512;
+static const size_t MAX_STR_SIZE = 512;
 typedef enum exitValues {
     EXIT_SUCCESS,
     EXIT_FAIL,
@@ -59,6 +59,9 @@ typedef enum exitValues {
 } ExitValues;
 
 static void fi_fini(Int exitcode);
+
+static void fi_add_address(toolData*, Addr, SizeT);
+static void fi_remove_address(toolData*, Addr, SizeT);
 
 /* Monitorables are basically memory locations of which the load operations are counted.
    These ma be extendend du to the needs of the tool.
@@ -237,6 +240,7 @@ static inline Bool monitorInst(Addr instAddr) {
             break;
     }
 #endif
+    return False;
 }
 
 /* A simple instruction counter. */
@@ -326,7 +330,8 @@ static const HChar* testable_lua_functions[] = {
     "next_block",
     "treat_superblock",
     "monitor_address",
-    "flip_value"
+    "flip_value",
+    "monitor_field"
 };
 
 /* --------------------------------------------------------------------------*/
@@ -349,6 +354,43 @@ static const luaL_Reg fitin_lualibs[] = {
 };
 
 /* --------------------------------------------------------------------------*/
+static int lua_add_address(lua_State *lua) {
+    Addr a = (Addr) lua_tonumber(lua, -2);
+    SizeT size = (SizeT) lua_tonumber(lua, -1);
+    fi_add_address(&tData, a, size);
+    return 0;
+}
+
+/* --------------------------------------------------------------------------*/
+static int lua_remove_address(lua_State *lua) {
+    Addr a = (Addr) lua_tonumber(lua, -2);
+    SizeT size = (SizeT) lua_tonumber(lua, -1);
+    fi_remove_address(&tData, a, size);
+    return 0;
+}
+
+/* Registers FITIn own's Lua methods to context `td`. */
+/* --------------------------------------------------------------------------*/
+static void register_lua_cfunctions(toolData *td) {
+    /* Optional persistance of flip. */
+    lua_pushcfunction(td->lua, lua_persist_flip);
+    lua_setglobal(tData.lua, "persist_flip");
+
+    /* Manual flip on arbitrary memory address. */
+    lua_pushcfunction(td->lua, lua_flip_on_memory);
+    lua_setglobal(tData.lua, "flip_on_memory");
+
+    /* Programmatic addition of monitorable addresses. */
+    lua_pushcfunction(td->lua, lua_add_address);
+    lua_setglobal(tData.lua, "add_address");
+
+    /* Inactivation of monitorable addresses. */
+    lua_pushcfunction(td->lua, lua_remove_address);
+    lua_setglobal(tData.lua, "remove_address");
+
+}
+
+/* --------------------------------------------------------------------------*/
 static void init_lua(void) {
     const luaL_Reg *lib = NULL;
     tData.lua = luaL_newstate();
@@ -363,13 +405,8 @@ static void init_lua(void) {
         luaL_requiref(tData.lua, lib->name, lib->func, 1);
         lua_pop(tData.lua, 1); 
     }
-    
-    /* Register `lua_persist_flip` to be callable. */
-    lua_pushcfunction(tData.lua, lua_persist_flip);
-    lua_setglobal(tData.lua, "persist_flip");
 
-    lua_pushcfunction(tData.lua, lua_flip_on_memory);
-    lua_setglobal(tData.lua, "flip_on_memory");
+    register_lua_cfunctions(&tData);
 
     /* Attempt to open control-script file. */
     if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
@@ -451,7 +488,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
 #endif
         key.monAddr = dataAddr;
         if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
+            Monitorable *mon = (Monitorable*) VG_(indexXA)(td->monitorables, first);
 
             if(mon->monValid) {
                 state.relevant = True;
@@ -467,7 +504,8 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         lua_getglobal(td->lua, "monitor_address");
         lua_pushinteger(td->lua, dataAddr);
         lua_pushboolean(td->lua, state.relevant);
-        if(lua_pcall(td->lua, 2, 1, 0) == 0) {
+        lua_pushinteger(td->lua, state.size);
+        if(lua_pcall(td->lua, 3, 1, 0) == 0) {
             state.relevant = lua_toboolean(td->lua, -1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(td->lua, -1));
@@ -1028,6 +1066,59 @@ static void fi_fini(Int exitcode) {
     VG_(printf)("[FITIn]   Instructions executed: %lu\n", (unsigned long) tData.instCnt);
 }
 
+/* Adds an address `a` of `size`  to context `td`. */
+/* --------------------------------------------------------------------------*/
+static void fi_add_address(toolData *td, Addr a, SizeT size) {
+    //Initialize and add monitorable to list
+    Monitorable mon;
+    mon.monAddr = a;
+    mon.monSize = size;
+    mon.monLen  = 1; // Length is constant 1 because it's no array
+    mon.monLoads = 0;
+    mon.monWrites = 0;
+    mon.monValid = True;
+    mon.modBit = tData.modBit;
+    mon.modIteration = tData.modMemLoadTime;
+    mon.monLstWriteIsn = 0;
+
+    Word first = 0, last = 0;
+
+    if(VG_(lookupXA)(tData.monitorables, &mon, &first, &last)) {
+        Word i = first;
+        Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+
+        /* Let's reactivate them and save some space. */
+        other_mon->monValid = True;
+
+        if(size > other_mon->monSize) {
+            other_mon->monSize = size;
+        }
+    } else {
+        VG_(addToXA)(tData.monitorables, &mon);
+        VG_(sortXA)(tData.monitorables);
+    }
+}
+
+/* Removes a given address `a`, last registered on `size` from context `td` of
+ * active addresses. */
+/* --------------------------------------------------------------------------*/
+static void fi_remove_address(toolData *td, Addr a, SizeT size) {
+    Word mons_num = 0, i = 0;
+    XArray *mons = tData.monitorables;
+
+    mons_num = VG_(sizeXA)(mons);
+    for (i = 0; i < mons_num; i++) {
+        Monitorable *mon = VG_(indexXA)(mons, i);
+        tl_assert(mon != NULL);
+
+        if(a == mon->monAddr &&
+                size == mon->monSize &&
+                mon->monValid == True) {
+            mon->monValid = False;
+        }
+    }
+}
+
 /* --------------------------------------------------------------------------*/
 static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     if (!VG_IS_TOOL_USERREQ('F', 'I', args[0])
@@ -1038,54 +1129,34 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     switch(args[0]) {
         case VG_USERREQ__MON_VAR:
         case VG_USERREQ__MON_MEM: {
-            //Initialize and add monitorable to list
-            Monitorable mon;
-            mon.monAddr = args[1];
-            mon.monSize = args[2];
-            mon.monLen  = 1; // Length is constant 1 because it's no array
-            mon.monLoads = 0;
-            mon.monWrites = 0;
-            mon.monValid = True;
-            mon.modBit = tData.modBit;
-            mon.modIteration = tData.modMemLoadTime;
-            mon.monLstWriteIsn = 0;
-
-            Word first = 0, last = 0;
-
-            if(VG_(lookupXA)(tData.monitorables, &mon, &first, &last)) {
-                Word i = first;
-                Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
-                
-                /* Let's reactivate them and save some space. */
-                other_mon->monValid = True;
-
-                if(args[2] > other_mon->monSize) {
-                    other_mon->monSize = args[2];
-                }
-            } else {
-                VG_(addToXA)(tData.monitorables, &mon);
-                VG_(sortXA)(tData.monitorables);
-            }
-
+            fi_add_address(&tData, args[1], args[2]);
             break;
         }
         case VG_USERREQ__UMON_VAR:
         case VG_USERREQ__UMON_MEM: {
-            Word size = 0, i = 0;
-            XArray *mons = tData.monitorables;
+            fi_remove_address(&tData, args[1], args[2]);
+            break;
+        }
+        case VG_USERREQ__MON_FIELD: {
+            if(tData.available_callbacks & 64) {
+                SizeT *field = (SizeT*) args[3];
+                Long i = 0;
 
-            size = VG_(sizeXA)(mons);
-            for (i = 0; i < size; i++) {
-                Monitorable *mon = VG_(indexXA)(mons, i);
-                tl_assert(mon != NULL);
+                lua_getglobal(tData.lua, "monitor_field");
+                lua_pushinteger(tData.lua, args[1]);
+                lua_pushinteger(tData.lua, args[2]);
 
-                if( args[1] == mon->monAddr &&
-                        args[2] == mon->monSize &&
-                        mon->monValid == True) {
-                    mon->monValid = False;
+                lua_newtable(tData.lua);
+                for(; i < args[4]; ++i) {
+                    lua_pushinteger(tData.lua, i);
+                    lua_pushinteger(tData.lua, field[i]);
+                    lua_rawset(tData.lua, -3);
+                }
+
+                if(!lua_pcall(tData.lua, 3, 0, 0) == 0) {
+                    VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
                 }
             }
-            break;
         }
         case VG_USERREQ__MON_ARR:
         case VG_USERREQ__UMON_ARR:

@@ -66,6 +66,7 @@ end
 --   * address:integer: The address to load from.
 --   * annotated:boolean: Flag, whether FITIn has seen a source code
 --     annotation for this location.
+--   * size:integer: The size given to this address.
 --
 -- Expected return: boolean. True or false for selecting specific
 -- variables. The ones rejected will not be receive a `flip_value` call.
@@ -73,7 +74,7 @@ end
 -- If missing: FITIn only selects addresses having a code annotation.
 -- The following listing is only for demonstration.
 --
-monitor_address = function(address, annotated)
+monitor_address = function(address, annotated, size)
   return annotated
 end
 
@@ -171,7 +172,24 @@ end
 --
 --   If missing: always continues.
 
+-- monitor_field
+--
+--   Convenience function after Fortran macro FITIN_MONITOR_FIELD(x).
+--   This function takes the start address of a field, the total size
+--   and the number of elements. This allows some more reliable flagging
+--   of elements somewhere in a field w.r.t. dimensions.
+--
+--     * address:integer: The start address of the field.
+--     * size:integer: The overall size of this field in bytes.
+--     * dimensions:table: A one-dimensional table containing n elements
+--       if the field was specified with n dimensions. Every i of n
+--       contains the size of the i-th dimension.
+--
+--   Note: There is no return value. Use add_address here to flag
+--   individual cells for being monitored.
+
 -- Can be called directly from virtually any callback:
+--
 --
 -- flip_on_memory
 --
@@ -182,3 +200,19 @@ end
 -- No return value.
 --
 -- WARNING: Invalid addresses or ranges may cause crashes.
+--
+--
+-- add_address
+--
+-- Equivalent to FITIN_MONITOR_MEMORY(mem, size).
+--
+--   * address:integer
+--   * size:integer
+--
+--
+-- remove_address
+--
+-- Equivalent to FITIN_UNMONITOR_MEMORY(mem, size).
+--
+--   * address:integer
+--   * size:integer

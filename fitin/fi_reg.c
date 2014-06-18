@@ -1013,7 +1013,6 @@ inline void  fi_reg_instrument_access(toolData *tool_data,
         case Iex_RdTmp: {
             /* Stop recursion if arrived on a RdTmp. And replace
                it if there are replacement entries for this one. */
-            IRTemp original_temp = (*expr)->Iex.RdTmp.tmp;
             replace_temps(replacements, expr);
             if(!replace_only) {
                 IRTemp new_temp = instrument_access_tmp(tool_data,

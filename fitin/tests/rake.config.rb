@@ -1,6 +1,6 @@
 CC = "gcc"
-CFLAGS = "-O0 -m64"
-LDFLAGS = "-m64"
+CFLAGS = "-O0 -m32"
+LDFLAGS = "-m32"
 
 TEST_BIN = "bin"
 TEST_BUILT_FILE = "built"
