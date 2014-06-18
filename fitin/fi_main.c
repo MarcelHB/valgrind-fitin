@@ -45,11 +45,9 @@
 #include "fitin.h"
 #include "fi_reg.h"
 
-#ifdef FITIN_WITH_LUA
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#endif
 
 static const size_t MAX_STR_SIZE = 512;
 typedef enum exitValues {
@@ -60,34 +58,22 @@ typedef enum exitValues {
 
 static void fi_fini(Int exitcode);
 
-static void fi_add_address(toolData*, Addr, SizeT);
-static void fi_remove_address(toolData*, Addr, SizeT);
+static void fi_add_address(ToolData*, Addr, SizeT);
+static void fi_remove_address(ToolData*, Addr, SizeT);
 
 /* Monitorables are basically memory locations of which the load operations are counted.
    These ma be extendend du to the needs of the tool.
 */
-typedef struct _Monitorable {
-    // Monitorable memory address; TODO: Find out how to reset it. (after function return?)
+typedef struct Monitorable {
+    // Monitorable memory address; 
     Addr monAddr;
     // The size of one monitorable element
     UWord monSize;
-    // The number of monitorable elements (i.e. array elements)
-    UWord monLen;
-    // # of loads
-    ULong monLoads;
-    // # of stores
-    ULong monWrites;
     // valid address (may be invalidated due to function return)
     Bool monValid;
-    // Bit to pos modified (only valid if modIteration != 0)
-    UChar modBit;
-    // # of loads until modification. (0 means never, 1 means on first load and so on)
-    ULong modIteration;
-    // Last write instruction
-    ULong monLstWriteIsn;
 } Monitorable;
 
-static toolData tData;
+static ToolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
 /* --------------------------------------------------------------------------*/
@@ -106,23 +92,15 @@ static Int cmpMonitorable (const void *v1, const void *v2) {
 /* --------------------------------------------------------------------------*/
 static void initTData(void) {
     tData.loads = 0;
-    tData.filter = MT_FILTFUNC;
-    tData.filtstr = (HChar*) "main";
     tData.instCnt = 0;
-    tData.instLmt = 0;
-    tData.modMemLoadTime = 1;
-    tData.modBit = 0;
     tData.monLoadCnt = 0;
-    tData.goldenRun = False;
     tData.reg_temp_occupancies = NULL;
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
     tData.runtime_active = True;
-#ifdef FITIN_WITH_LUA
     tData.lua_script = NULL;
     tData.lua = NULL;
     tData.available_callbacks = 0;
-#endif
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -197,7 +175,6 @@ static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
     }
-#ifdef FITIN_WITH_LUA
     if(tData.available_callbacks & 8) {
         HChar fnname[MAX_STR_SIZE];
         HChar filename[MAX_STR_SIZE];
@@ -229,17 +206,6 @@ static inline Bool monitorInst(Addr instAddr) {
     } else {
         return True;
     }
-#else
-    switch (tData.filter) {
-        case MT_FILTFUNC:
-            return instInFunc(instAddr, tData.filtstr);
-        case MT_FILTINCL:
-            return instInInclude(instAddr, tData.filtstr);
-        default:
-            tl_assert(0);
-            break;
-    }
-#endif
     return False;
 }
 
@@ -247,13 +213,6 @@ static inline Bool monitorInst(Addr instAddr) {
 /* --------------------------------------------------------------------------*/
 static inline void incrInst(void) {
     tData.instCnt++;
-
-#ifndef FITIN_WITH_LUA
-    if(tData.instLmt && tData.instCnt >= tData.instLmt) {
-        fi_fini(EXIT_STOPPED);
-        VG_(exit)(0);
-    }
-#endif
 }
 
 /* FITIn uses several command line options.
@@ -263,29 +222,11 @@ static inline void incrInst(void) {
 static Bool fi_process_cmd_line_option(const HChar *arg) {
     const HChar* tmp_string = NULL;
 
-    if VG_STR_CLO(arg, "--fnname", tmp_string) {
-        tData.filtstr = (HChar*) tmp_string;
-        tData.filter = MT_FILTFUNC;
-    } else if VG_STR_CLO(arg, "--include", tmp_string) {
-        tData.filtstr = (HChar*) tmp_string;
-        tData.filter = MT_FILTINCL;
-    } else if VG_INT_CLO(arg, "--mod-load-time", tData.modMemLoadTime) {}
-    else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
-    else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
-    else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
-    else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
-    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
-#ifdef FITIN_WITH_LUA 
-    else if VG_STR_CLO(arg, "--control-script", tmp_string) {
+    if VG_STR_CLO(arg, "--control-script", tmp_string) {
         tData.lua_script = (HChar*) tmp_string;
-    }
-#endif
-    else {
+    }else {
         return False;
     }
-
-    tl_assert(tData.filtstr);
-    tl_assert(tData.filtstr[0]);
 
     return True;
 }
@@ -293,25 +234,8 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
 /* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
-#ifdef FITIN_WITH_LUA
         "    --control-script=<path>   A control script written in Lua.       \n"
         "                              Contains control callbacks.            \n"
-#else
-        "    --golden-run=[yes|no]     States whether this is the golden run. \n"
-        "                              The golden run just monitors, no modify\n"
-        "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
-        "                              origin.\n"
-        "    --fnname=<name>           Monitor instructions in functon <name> \n"
-        "                              [Main].\n"
-        "    --include=<dir>           Monitor instructions which have debug  \n"
-        "                              information from this directory.       \n"
-        "    --mod-load-time=<number>  Modify at a given load time [0].       \n"
-        "    --mod-bit=<number>        Modify the given bit of the target.    \n"
-        "    --inst-limit=<number>     The maximum numbers of instructions to \n"
-        "                              be executed. To prevent endless loops. \n"
-        "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
-        "                              vant: No need for macros.\n"
-#endif
     );
 }
 
@@ -322,7 +246,6 @@ static void fi_print_debug_usage(void) {
     );
 }
 
-#ifdef FITIN_WITH_LUA
 /* --------------------------------------------------------------------------*/
 static const HChar* testable_lua_functions[] = {
     "before_start",
@@ -371,7 +294,7 @@ static int lua_remove_address(lua_State *lua) {
 
 /* Registers FITIn own's Lua methods to context `td`. */
 /* --------------------------------------------------------------------------*/
-static void register_lua_cfunctions(toolData *td) {
+static void register_lua_cfunctions(ToolData *td) {
     /* Optional persistance of flip. */
     lua_pushcfunction(td->lua, lua_persist_flip);
     lua_setglobal(tData.lua, "persist_flip");
@@ -424,14 +347,12 @@ static void init_lua(void) {
         lua_remove(tData.lua, -1);
     }
 }
-#endif
 
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
     if(VG_(clo_verbosity) > 1) {
         VG_(needs_var_info)();
     }
-#ifdef FITIN_WITH_LUA
     if(tData.lua_script != NULL) {
         init_lua();
         
@@ -444,7 +365,6 @@ static void fi_post_clo_init(void) {
     } else {
         exit_for_invalid_lua();
     }
-#endif
 }
 
 /**
@@ -457,7 +377,7 @@ static void fi_post_clo_init(void) {
  *  tracing.
  */
 /* --------------------------------------------------------------------------*/
-static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
+static Word VEX_REGPARM(3) preLoadHelper(ToolData *td, 
                                          Addr dataAddr,
                                          IRType ty) {
     LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
@@ -479,27 +399,16 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         return state_list_size;
     }
 
-    // iterate over monitorables list
-#ifndef FITIN_WITH_LUA
-    if(td->ignore_monitorables) {
-        state.relevant = True;
-        state.full_size = size;
-    } else {
-#endif
-        key.monAddr = dataAddr;
-        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-            Monitorable *mon = (Monitorable*) VG_(indexXA)(td->monitorables, first);
+    key.monAddr = dataAddr;
+    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+        Monitorable *mon = (Monitorable*) VG_(indexXA)(td->monitorables, first);
 
-            if(mon->monValid) {
-                state.relevant = True;
-                state.full_size = mon->monSize;
-            }
+        if(mon->monValid) {
+            state.relevant = True;
+            state.full_size = mon->monSize;
         }
-#ifndef FITIN_WITH_LUA
     }
-#endif
 
-#ifdef FITIN_WITH_LUA
     if(td->available_callbacks & 16) {
         lua_getglobal(td->lua, "monitor_address");
         lua_pushinteger(td->lua, dataAddr);
@@ -512,7 +421,6 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
         }
         lua_pop(td->lua, 1);
     }
-#endif
 
     VG_(addToXA)(td->load_states, &state);
 
@@ -527,7 +435,7 @@ static Word VEX_REGPARM(3) preLoadHelper(toolData *td,
  * where relevancy and address can be found.
  */
 /* --------------------------------------------------------------------------*/
-static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
+static LoadData* instrument_load(ToolData *td, IRExpr *expr, IRSB *sbOut) {
     if (expr->tag == Iex_Load) {
         IRDirty *di;
         IRExpr **args;
@@ -1050,7 +958,6 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-#ifdef FITIN_WITH_LUA
     if(tData.available_callbacks & 2) {
         lua_getglobal(tData.lua, "after_end");
         if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
@@ -1058,7 +965,6 @@ static void fi_fini(Int exitcode) {
         }
     }
     lua_close(tData.lua);
-#endif
 
     VG_(printf)("[FITIn] Totals (of monitored code blocks)\n");
     VG_(printf)("[FITIn]   Overall variable accesses: %lu\n", (unsigned long) tData.loads);
@@ -1068,18 +974,12 @@ static void fi_fini(Int exitcode) {
 
 /* Adds an address `a` of `size`  to context `td`. */
 /* --------------------------------------------------------------------------*/
-static void fi_add_address(toolData *td, Addr a, SizeT size) {
+static void fi_add_address(ToolData *td, Addr a, SizeT size) {
     //Initialize and add monitorable to list
     Monitorable mon;
     mon.monAddr = a;
     mon.monSize = size;
-    mon.monLen  = 1; // Length is constant 1 because it's no array
-    mon.monLoads = 0;
-    mon.monWrites = 0;
     mon.monValid = True;
-    mon.modBit = tData.modBit;
-    mon.modIteration = tData.modMemLoadTime;
-    mon.monLstWriteIsn = 0;
 
     Word first = 0, last = 0;
 
@@ -1102,7 +1002,7 @@ static void fi_add_address(toolData *td, Addr a, SizeT size) {
 /* Removes a given address `a`, last registered on `size` from context `td` of
  * active addresses. */
 /* --------------------------------------------------------------------------*/
-static void fi_remove_address(toolData *td, Addr a, SizeT size) {
+static void fi_remove_address(ToolData *td, Addr a, SizeT size) {
     Word mons_num = 0, i = 0;
     XArray *mons = tData.monitorables;
 
@@ -1158,11 +1058,6 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
                 }
             }
         }
-        case VG_USERREQ__MON_ARR:
-        case VG_USERREQ__UMON_ARR:
-        case VG_USERREQ__INJ_B_VAR:
-        case VG_USERREQ__INJ_B_MEM:
-        case VG_USERREQ__CINJ_B_VAR:
         default:
             return False;
     }
@@ -1188,7 +1083,6 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    VG_(free),
                                    sizeof(LoadState));
 
-#ifdef FITIN_WITH_LUA
     if(tData.available_callbacks & 4) {
         lua_getglobal(tData.lua, "next_block");
         lua_pushinteger(tData.lua, tData.instCnt);
@@ -1206,7 +1100,6 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
         }
         lua_pop(tData.lua, 1);
     }
-#endif
 }
 
 /* This method will check for every `size` bytes, beginning at `a` whether there

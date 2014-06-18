@@ -72,7 +72,7 @@ typedef struct {
 } ReplaceData;
 
 typedef struct {
-    toolData *td;
+    ToolData *td;
     LoadState *state;
     enum { MEMORY, REG_TABLE, NORMAL } type;
     UInt offset;
@@ -85,7 +85,7 @@ void fi_reg_add_temp_load(XArray *list, LoadData* data);
    and in this case, it adds a copy of that original temp to the loads for
    `new_temp` with type `ty`. The return value states whther this expr was a
    GET. */
-Bool fi_reg_add_load_on_get(toolData *tool_data,
+Bool fi_reg_add_load_on_get(ToolData *tool_data,
                             XArray *loads,
                             IRTemp new_temp,
                             IRType ty,
@@ -99,20 +99,20 @@ Bool fi_reg_skip_on_resize(IRExpr *expr);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
    to insert helpers if appllicable. */
-void fi_reg_add_pre_dirty_modifiers(toolData *tool_data,
+void fi_reg_add_pre_dirty_modifiers(ToolData *tool_data,
                                     IRDirty *di,
                                     IRSB *sb);
 
 /* The same as above, but for memory accesses by an IRDirty on `address` by
    `size` bytes. */
-void fi_reg_add_pre_dirty_modifiers_mem(toolData *tool_data,
+void fi_reg_add_pre_dirty_modifiers_mem(ToolData *tool_data,
                                         IRExpr *address,
                                         Int size,
                                         IRSB *sb);
 
 /* Whenever a PUT to an `offset` occurs, this method will analyze the
    expression `expr` for its relevancy and add the runtime helpers. */
-void fi_reg_set_occupancy(toolData *tool_data,
+void fi_reg_set_occupancy(ToolData *tool_data,
                           XArray *loads,
                           Int offset,
                           IRExpr *expr,
@@ -122,7 +122,7 @@ void fi_reg_set_occupancy(toolData *tool_data,
    expression `expr` for its relevancy for passive tmps, that are known to
    have no actual use inside the current `sb` (listed in `pre_reg_markers`, 
    and add the runtime helpers. */
-Bool fi_reg_set_passive_occupancy(toolData *tool_data,
+Bool fi_reg_set_passive_occupancy(ToolData *tool_data,
                                   XArray *loads,
                                   IRTemp *pre_reg_markers,
                                   Int offset,
@@ -139,17 +139,17 @@ Int fi_reg_compare_replacements(const void *l1, const void *l2);
 /* This method must be used if we know that data is definitely read from 
    memory (syscall). It takes the address `a` and the size `size` to check
    for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
-void fi_reg_flip_or_leave_mem(toolData *toolData, Addr a, SizeT size);
+void fi_reg_flip_or_leave_mem(ToolData *ToolData, Addr a, SizeT size);
 
 /* This method can be used to operate on a memory image `buffer` of Valgrind's
    register shadow table, flipping at `offset` inside `size` bytes. */
-void fi_reg_flip_or_leave_registers(toolData *tool_data,
+void fi_reg_flip_or_leave_registers(ToolData *tool_data,
                                     UChar *buffer,
                                     PtrdiffT offset,
                                     SizeT size);
 /* Recursive method that iterates into `expr` to find all sub-expressions and
    to instrument all accesses. `replace_only` will skip instrumentation. */
-void fi_reg_instrument_access(toolData *tool_data,
+void fi_reg_instrument_access(ToolData *tool_data,
                               XArray *loads,
                               XArray *replacements,
                               IRExpr **expr,
@@ -159,14 +159,13 @@ void fi_reg_instrument_access(toolData *tool_data,
 /* Method to be called on a Store instruction. Needs all the lists, `expr`
    as the pointer to the expression to store, `address` as destination.
    The return value indicates whether the expr was a RdTmp. */
-Bool fi_reg_instrument_store(toolData *tool_data,
+Bool fi_reg_instrument_store(ToolData *tool_data,
                              XArray *loads,
                              XArray *replacements,
                              IRExpr **expr,
                              IRExpr *address,
                              IRSB *sb);
 
-#ifdef FITIN_WITH_LUA
 /* This function can be directly called from inside Lua on `flip_value`. It
    has to pass the given pointer `data` and an array of bit patterns. */
 int lua_persist_flip(lua_State *lua);
@@ -175,6 +174,5 @@ int lua_persist_flip(lua_State *lua);
    address, pattern, size to manually trigger bit flips outside of given
    addresses. */
 int lua_flip_on_memory(lua_State *lua);
-#endif
 
 #endif

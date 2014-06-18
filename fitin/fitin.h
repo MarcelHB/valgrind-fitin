@@ -35,47 +35,19 @@
 
 #include "fi_client.h"
 
-#ifdef FITIN_WITH_LUA
 #include <lua.h>
-#endif
-
-/* In order to monitor only a subset of the called functions we need filter
-   the correct instructions. This can be done in various ways. I.e. the
-   functions may be filtered by function name.
- */
-typedef enum {
-    //Filter single function
-    MT_FILTFUNC,
-    //Filter by given include path
-    MT_FILTINCL
-    //FIXME: Not used yet
-    //Filter a given function and all functions called from it
-    //MT_FILTFUNCABOVE
-} filterType;
 
 /* Macro that is needed for determining allocation sizes of shadow fields. */
 #define GUEST_STATE_SIZE sizeof(VexGuestArchState)
 
 // This is a data structure to store tool specific data.
-typedef struct _toolData {
+typedef struct ToolData {
     // Counter for memory loads.
     ULong loads;
-    // A filtertype for the monitorable instructions.
-    filterType filter;
-    // If filtertype is MT_FILTFUNC this is the function name to be filtered by.
-    HChar *filtstr;
     // Executed instructions counter
     ULong instCnt;
-    // Instruction limit
-    ULong instLmt;
-    // The count when the memory will be modified. TODO: check the upper bound of the golden run?
-    ULong modMemLoadTime;
-    // Bit which will be modified.
-    UChar modBit;
     // Faults injected
     UChar injections;
-    // States if this is the golden run. No memory modifies should be made during the golden run.
-    Bool goldenRun;
     // Monitorables
     XArray *monitorables;
     // Counter for overall monitored loads
@@ -98,20 +70,18 @@ typedef struct _toolData {
     Bool ignore_monitorables;
     /* Continue executing runtime functions? */
     Bool runtime_active;
-#ifdef FITIN_WITH_LUA
 		/* Path to a lua file to load. */
 		HChar *lua_script;
 		/* Lua state. */
 		lua_State *lua;
 		/* Available callbacks. */
-		/* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? */
+		/* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? | FIELD */
 		ULong available_callbacks;
-#endif
-} toolData;
+} ToolData;
 
 typedef struct QueuedLoad {
     IRTemp t;
     UInt i;
 } QueuedLoad;
 
-#endif /* __FITIN_H */
+#endif
