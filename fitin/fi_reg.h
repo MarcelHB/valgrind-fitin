@@ -38,6 +38,19 @@
 
 #define LOAD_STATE_INVALID_INDEX -1
 
+/* Monitorables are basically memory locations of which the load operations are counted.
+   These ma be extendend du to the needs of the tool.
+*/
+typedef struct Monitorable {
+    /* Monitorable memory address */
+    Addr monAddr;
+    /* Size of one monitorable element */
+    UWord monSize;
+    /* Enabled/disabled state */
+    Bool monValid;
+} Monitorable;
+
+
 /* LoadState is used at execution time of the instrumented code, it
    contains all the data necessary to do relevancy tests, and size-
    aware flipping. */

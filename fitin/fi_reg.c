@@ -646,20 +646,9 @@ static inline void flip_or_leave(ToolData *tool_data,
     }
 }
 
-/* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
-   reads on `a` by `size` bytes. */
 /* --------------------------------------------------------------------------*/
-static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(ToolData *tool_data,
-                                                         Addr a,
-                                                         SizeT size) {
-    if(tool_data->runtime_active) {
-        fi_reg_flip_or_leave_mem(tool_data, a, size);
-    }
-}
-
-/* See fi_reg.h */
-/* --------------------------------------------------------------------------*/
-inline void fi_reg_flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
+inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size);
+inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
@@ -695,6 +684,37 @@ inline void fi_reg_flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
             lua_pop(tool_data->lua, 1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
+        }
+    }
+}
+
+/* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
+   reads on `a` by `size` bytes. */
+/* --------------------------------------------------------------------------*/
+static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(ToolData *tool_data,
+                                                         Addr a,
+                                                         SizeT size) {
+    if(tool_data->runtime_active) {
+        fi_reg_flip_or_leave_mem(tool_data, a, size);
+    }
+}
+
+/* See fi_reg.h */
+/* --------------------------------------------------------------------------*/
+inline void fi_reg_flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
+    Word first, last;
+    Int mem_offset = 0;
+
+    for(; mem_offset <= size; ++mem_offset) {
+        Monitorable key;
+        key.monAddr = a + mem_offset;
+
+        if(VG_(lookupXA)(tool_data->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable*) VG_(indexXA)(tool_data->monitorables, first);
+
+            if(mon->monValid) {
+                flip_or_leave_mem(tool_data, a, mon->monSize);
+            }
         }
     }
 }

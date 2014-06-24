@@ -61,18 +61,6 @@ static void fi_fini(Int exitcode);
 static void fi_add_address(ToolData*, Addr, SizeT);
 static void fi_remove_address(ToolData*, Addr, SizeT);
 
-/* Monitorables are basically memory locations of which the load operations are counted.
-   These ma be extendend du to the needs of the tool.
-*/
-typedef struct Monitorable {
-    // Monitorable memory address; 
-    Addr monAddr;
-    // The size of one monitorable element
-    UWord monSize;
-    // valid address (may be invalidated due to function return)
-    Bool monValid;
-} Monitorable;
-
 static ToolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
@@ -1110,21 +1098,7 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
     if(tData.runtime_active && part == Vg_CoreSysCall) {
-        Word first, last;
-        Int mem_offset = 0;
-
-        for(; mem_offset <= size; ++mem_offset) {
-            Monitorable key;
-            key.monAddr = a + mem_offset;
-
-            if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
-                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, first);
-
-                if(mon->monValid) {
-                    fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
-                }
-            }
-        }
+        fi_reg_flip_or_leave_mem(&tData, a, size);
     }
 }
 
