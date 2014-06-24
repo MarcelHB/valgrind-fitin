@@ -70,13 +70,13 @@ typedef struct ToolData {
     Bool ignore_monitorables;
     /* Continue executing runtime functions? */
     Bool runtime_active;
-		/* Path to a lua file to load. */
-		HChar *lua_script;
-		/* Lua state. */
-		lua_State *lua;
-		/* Available callbacks. */
-		/* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? | FIELD */
-		ULong available_callbacks;
+    /* Path to a lua file to load. */
+    HChar *lua_script;
+    /* Lua state. */
+    lua_State *lua;
+    /* Available callbacks. */
+    /* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? | FIELD */
+    ULong available_callbacks;
 } ToolData;
 
 typedef struct QueuedLoad {

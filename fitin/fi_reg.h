@@ -74,7 +74,7 @@ typedef struct {
     IRExpr *addr; 
     IRTemp state_list_index;
     IREndness end;
-		Bool passive;
+    Bool passive;
 } LoadData;
 
 /* Just a data tuple of (old temp, new temp) used to replace original
