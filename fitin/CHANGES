@@ -1,0 +1,16 @@
+HISTORY of significant changes to FITIn
+
+
+2014-06:
+         * Adds Fortran-specific scripting features.
+2014-04:
+         * Adds bridge module to interact with Fortran code.
+2013-12:
+         * Adds Lua interpreter for controlling flip scenarios.
+2013-11:
+         * Adds support for arbitrary data, restores floating point targets.
+         * Update to work on Valgrind v3.9
+2013-06:
+         * Revised version, changes flips from on-load time to on-access time.
+2013-03:
+         * Initial version of FITIn
