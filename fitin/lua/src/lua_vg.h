@@ -5,6 +5,13 @@
 #include <time.h>
 #include <stdio.h>
 
+#ifdef FITIN_WITH_LUA_LOCKS
+/* We need fcntl from the core. */
+#include "coregrind/pub_core_vki.h"
+#include "coregrind/pub_core_basics.h"
+#include "coregrind/pub_core_libcfile.h"
+#endif
+
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcfile.h"
 #include "pub_tool_libcprint.h"
@@ -20,6 +27,7 @@ extern void lua_print(const char*, ...);
 
 /* Memory functions. */
 #define free(p) VG_(free)(p)
+#define malloc(s) VG_(malloc)((HChar*) "fitin.lua", s)
 #define realloc(p,n) VG_(realloc)((HChar*) "fitin.lua", p, n);
 
 /* String functions. */
@@ -118,8 +126,17 @@ extern void vg_srand(unsigned int);
 
 /* File system operations. */
 #define clearerr(f);
+extern char* vg_getcwd(HChar*, SizeT);
+#define getcwd(b,s) vg_getcwd(b, s)
+#define fileno(x) ((vg_FILE*)x)->fd
+
+#ifdef FITIN_WITH_LUA_LOCKS
+#define fcntl(a, b, c) VG_(fcntl)((Int) a, b, (Addr) c)
+#endif
+
 #define rename(f,t) VG_(rename)((HChar*)f,(HChar*)t)
 #define remove(f) VG_(unlink)((HChar*)f)
+#define stat(b,p) VG_(stat)(p,b)
 extern char* vg_tmpnam(char*);
 #define tmpnam(f) vg_tmpnam(f)
 extern FILE* vg_tmpfile(void);

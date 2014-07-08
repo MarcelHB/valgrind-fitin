@@ -216,3 +216,20 @@ end
 --
 --   * address:integer
 --   * size:integer
+--
+
+-- FILE LOCKS
+--
+-- On Linux, and for multiple or distributed Valgrind processes, you can try to
+-- use file locks to achive exclusive operations.
+--
+-- You need to C-define FITIN_WITH_LUA_LOCKS when compiling FITIn as this feature
+-- is not fully platform independent yet (modify `Makefile.am' here and re-run
+-- `autogen.sh').
+--
+-- Once compiled, we enabled some functions from the LuaFileSystem 
+-- (http://keplerproject.github.io/luafilesystem/), most notably `lfs.lock' and
+-- `lfs.unlock'.
+--
+-- Put these into one of the callbacks to have one of the processes gain the lock.
+--

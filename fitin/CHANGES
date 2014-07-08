@@ -1,6 +1,7 @@
 HISTORY of significant changes to FITIn
 
-
+2014-07:
+				 * Adds file locks on Linux.
 2014-06:
          * Adds Fortran-specific scripting features.
 2014-04:

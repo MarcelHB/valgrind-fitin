@@ -1,6 +1,5 @@
 #include <limits.h>
 #include <lua_vg.h>
-#include <fcntl.h>
 
 #include "pub_tool_libcassert.h"
 #include "pub_tool_libcbase.h"
@@ -279,6 +278,11 @@ extern FILE* vg_tmpfile(void) {
     return vg_fopen(buf, "wb+");
 }
 
+/* --------------------------------------------------------------------------*/
+extern char* vg_getcwd(HChar *buf, SizeT size) {
+    return VG_(get_startup_wd)(buf, size) ? buf : NULL;
+}
+
 /* This one will simply output the ms passed so far, ignoring `format`. */
 /* --------------------------------------------------------------------------*/
 extern size_t vg_strftime(void *ptr, size_t size, char *format, struct tm *_tm) {
@@ -352,17 +356,17 @@ Int vg_fopen_translate_flag_bits(UChar fbits) {
     Int sysc_bits = 0;
 
     if((fbits & 3) == 3) {
-       sysc_bits |= O_RDWR; 
+       sysc_bits |= VKI_O_RDWR; 
     } else if(fbits & 2) {
-       sysc_bits |= O_WRONLY;
+       sysc_bits |= VKI_O_WRONLY;
     } else if(fbits & 1) {
-       sysc_bits |= O_RDONLY;
+       sysc_bits |= VKI_O_RDONLY;
     }
 
     if(fbits & 4) {
-        sysc_bits |= O_APPEND;
+        sysc_bits |= VKI_O_APPEND;
     } else if((fbits & 8) == 0) {
-        sysc_bits |= O_CREAT;
+        sysc_bits |= VKI_O_CREAT;
     }
 
     return sysc_bits;

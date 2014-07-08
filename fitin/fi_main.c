@@ -251,6 +251,10 @@ static void exit_for_invalid_lua(void) {
     VG_(exit)(1);
 }
 
+#ifdef FITIN_WITH_LUA_LOCKS
+#include "lua/src/lfs.h"
+#endif
+
 /* --------------------------------------------------------------------------*/
 static const luaL_Reg fitin_lualibs[] = {
     {"_G", luaopen_base},
@@ -261,6 +265,9 @@ static const luaL_Reg fitin_lualibs[] = {
     {LUA_STRLIBNAME, luaopen_string},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_MATHLIBNAME, luaopen_math},
+#ifdef FITIN_WITH_LUA_LOCKS
+    {"lfs", luaopen_lfs},
+#endif
     {NULL, NULL}
 };
 
@@ -1107,7 +1114,7 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
 static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
                                    Addr a) {
     /* Sometimes, when running MPI programs, this turns out to be NULL. */
-    if(a != NULL) {
+    if((void*)a != NULL) {
         SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
         fi_reg_on_mem_read(part, tid, s, a, strlen);
     }
