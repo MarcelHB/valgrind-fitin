@@ -40,6 +40,14 @@
 /* Macro that is needed for determining allocation sizes of shadow fields. */
 #define GUEST_STATE_SIZE sizeof(VexGuestArchState)
 
+#define CALLBACK_START    1
+#define CALLBACK_END      2
+#define CALLBACK_NEXT_SB  4
+#define CALLBACK_TREAT_SB 8
+#define CALLBACK_ADDRESS  16
+#define CALLBACK_FLIP     32
+#define CALLBACK_FIELD    64
+
 // This is a data structure to store tool specific data.
 typedef struct ToolData {
     // Counter for memory loads.

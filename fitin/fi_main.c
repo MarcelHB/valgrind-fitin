@@ -163,7 +163,7 @@ static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
     }
-    if(tData.available_callbacks & 8) {
+    if(tData.available_callbacks & CALLBACK_TREAT_SB) {
         HChar fnname[MAX_STR_SIZE];
         HChar filename[MAX_STR_SIZE];
         HChar dirname[MAX_STR_SIZE];
@@ -348,7 +348,7 @@ static void fi_post_clo_init(void) {
     if(tData.lua_script != NULL) {
         init_lua();
         
-        if(tData.available_callbacks & 1) {
+        if(tData.available_callbacks & CALLBACK_START) {
             lua_getglobal(tData.lua, "before_start");
             if(!lua_pcall(tData.lua, 0, 1, 0) == 0) {
                 VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
@@ -418,7 +418,7 @@ static Word VEX_REGPARM(3) preLoadHelper(ToolData *td,
         }
     }
 
-    if(td->available_callbacks & 16) {
+    if(td->available_callbacks & CALLBACK_ADDRESS) {
         lua_getglobal(td->lua, "monitor_address");
         lua_pushinteger(td->lua, dataAddr);
         lua_pushboolean(td->lua, state.relevant);
@@ -967,7 +967,7 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-    if(tData.available_callbacks & 2) {
+    if(tData.available_callbacks & CALLBACK_END) {
         lua_getglobal(tData.lua, "after_end");
         if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
             VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
@@ -1047,7 +1047,7 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
             break;
         }
         case VG_USERREQ__MON_FIELD: {
-            if(tData.available_callbacks & 64) {
+            if(tData.available_callbacks & CALLBACK_FIELD) {
                 SizeT *field = (SizeT*) args[3];
                 Long i = 0;
 
@@ -1092,7 +1092,7 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    VG_(free),
                                    sizeof(LoadState));
 
-    if(tData.available_callbacks & 4) {
+    if(tData.available_callbacks & CALLBACK_NEXT_SB) {
         lua_getglobal(tData.lua, "next_block");
         lua_pushinteger(tData.lua, tData.instCnt);
         if(lua_pcall(tData.lua, 1, 1, 0) == 0) {

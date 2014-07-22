@@ -617,7 +617,7 @@ static inline void flip_or_leave(ToolData *tool_data,
     if(state->relevant) {
         tool_data->monLoadCnt++;
 
-        if(tool_data->available_callbacks & 32) {
+        if(tool_data->available_callbacks & CALLBACK_FLIP) {
             HChar *description = get_debug_sym_description(tool_data, state->location);
 
             LuaFlipPassData lua_data = { tool_data, state, NORMAL };
@@ -662,7 +662,7 @@ static inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
-    if(tool_data->available_callbacks & 32) {
+    if(tool_data->available_callbacks & CALLBACK_FLIP) {
         HChar *description = get_debug_sym_description(tool_data, a);
 
         LuaFlipPassData lua_data = { NULL, NULL, MEMORY };
@@ -1408,7 +1408,7 @@ static inline void flip_or_leave_on_buffer(ToolData *tool_data,
 
     void *origin = (void*) tool_data->reg_origins[offset];
 
-    if(tool_data->available_callbacks & 32) {
+    if(tool_data->available_callbacks & CALLBACK_FLIP) {
         HChar *description = get_debug_sym_description(tool_data, (Addr) origin);
 
         LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset };
