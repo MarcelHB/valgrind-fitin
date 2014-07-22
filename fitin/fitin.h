@@ -77,6 +77,8 @@ typedef struct ToolData {
     /* Available callbacks. */
     /* 0..x: START | END | NEXT | SB? | ADDRESS? | FLIP? | FIELD */
     ULong available_callbacks;
+    /* Has read debug symbols? */
+    Bool with_debug_symbols;
 } ToolData;
 
 typedef struct QueuedLoad {

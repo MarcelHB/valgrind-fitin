@@ -55,10 +55,10 @@ static void analyze_dirty_and_add_modifiers(ToolData *tool_data,
                                             Int nFx,
                                             IRSB *sb);
 
-static inline void flip_bits(void *data,
-                             SizeT size,
-                             ULong *bit_table,
-                             SizeT table_size);
+static void flip_bits(void *data,
+                      SizeT size,
+                      ULong *bit_table,
+                      SizeT table_size);
 
 static UChar flip_byte_at_bit(UChar byte, UChar bit);
 
@@ -121,14 +121,14 @@ Int fi_reg_compare_replacements(const void *r1, const void *r2) {
     return (t1 == t2) ? 0 : ((t1 < t2) ? -1 : 1);
 }
 
-/* Copies data from load state list at `state_list_index` into the register
-   shadow fields, beginning at `offset` for `size` bytes. This includes the
+/* Copies data from load state list at `state_list_index' into the register
+   shadow fields, beginning at `offset' for `size' bytes. This includes the
    original address, the size of the LD instruction and the monitorable size. */ 
 /* ---------------------------------------------------------------------------*/
-static void fi_reg_set_occupancy_origin(ToolData *tool_data, 
-                                        Int offset,
-                                        SizeT size,
-                                        Word state_list_index) {
+static void VEX_REGPARM(3) fi_reg_set_occupancy_origin(ToolData *tool_data,
+                                                       Int offset,
+                                                       SizeT size,
+                                                       Word state_list_index) {
     /* After an injection, update any (remaining) information as irrelevant. */
     if(tool_data->runtime_active) {
         LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
@@ -146,7 +146,7 @@ static void fi_reg_set_occupancy_origin(ToolData *tool_data,
     }
 }
 
-/* Fills the register shadow fields beginning at `offset` for `size` bytes
+/* Fills the register shadow fields beginning at `offset' for `size' bytes
    with data indicating irrelevant contents. We need this additional dirty
    as we we cannot pass an IRTemp_INVALID as state_list_index for the
    previous one. */
@@ -158,8 +158,8 @@ static void VEX_REGPARM(3) fi_reg_set_occupancy_origin_irrelevant(ToolData *tool
     update_reg_load_sizes(tool_data, offset, size, 0);
 }
 
-/* Function that is doing the actual writing to `tool_data`. Starting at
-   `offset`, it writes the origin for any `size` bytes and adjusts the 
+/* Function that is doing the actual writing to `tool_data'. Starting at
+   `offset', it writes the origin for any `size' bytes and adjusts the
    address.*/
 /* --------------------------------------------------------------------------*/
 static inline void update_reg_origins(ToolData *tool_data, 
@@ -174,10 +174,10 @@ static inline void update_reg_origins(ToolData *tool_data,
     }
 }
 
-/* Function that is doing the actual writing to `tool_data`. Starting at
-   `offset`, it writes for the loaded size and the original monitoring size
-   down to the shadows field. Starting at `offset`, it writes down as many
-   bytes as `left` is large, 0 meaning 'last byte' of this load.*/
+/* Function that is doing the actual writing to `tool_data'. Starting at
+   `offset', it writes for the loaded size and the original monitoring size
+   down to the shadows field. Starting at `offset', it writes down as many
+   bytes as `left' is large, 0 meaning 'last byte' of this load.*/
 /* --------------------------------------------------------------------------*/
 static inline void update_reg_load_sizes(ToolData *tool_data,
                                          Int offset,
@@ -311,7 +311,7 @@ inline void fi_reg_set_occupancy(ToolData *tool_data,
     }
 }
 
-/* Updates the state list at `state_list_index` for the type `ty`. */
+/* Updates the state list at `state_list_index' for the type `ty'. */
 /* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(3) fi_reg_update_type(ToolData *tool_data, 
                                               Word state_list_index,
@@ -387,11 +387,6 @@ inline Bool fi_reg_add_load_on_get(ToolData *tool_data,
    The return value may be flipped or not but must be used for replacing the
    original acccessed IRTemp in either case. */
 /* --------------------------------------------------------------------------*/
-/* Prevents warning. */
-static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(ToolData *tool_data,
-                                                 UWord data,
-                                                 Word state_list_index);
-
 static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(ToolData *tool_data,
                                                  UWord data,
                                                  Word state_list_index) {
@@ -417,10 +412,6 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave(ToolData *tool_data,
    value to flip, we use a pointer. The flipped value is located at the 
    address which is returned by this function. */
 /* --------------------------------------------------------------------------*/
-/* Prevents warning. */
-static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(ToolData *tool_data,
-                                                     Word state_list_index);
-
 static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(ToolData *tool_data,
                                                      Word state_list_index) {
     tool_data->loads++;
@@ -444,15 +435,9 @@ static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(ToolData *tool_data,
     }
 }
 /* This dirty call must be used before ST. It will ensure that flipping is only
-   done if the original address of the IRTemp and the destination `address` are
+   done if the original address of the IRTemp and the destination `address' are
    different. */
 /* --------------------------------------------------------------------------*/
-/* Prevents warning. */
-static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(ToolData *tool_data,
-                                                              UWord data,
-                                                              Addr address,
-                                                              Word state_list_index);
-
 static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(ToolData *tool_data,
                                                               UWord data,
                                                               Addr address,
@@ -481,10 +466,6 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(ToolData *tool_dat
 /* --------------------------------------------------------------------------*/
 static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(ToolData *tool_data,
                                                                   Addr location,
-                                                                  Word state_list_index);
-
-static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(ToolData *tool_data,
-                                                                  Addr location,
                                                                   Word state_list_index) {
     tool_data->loads++;
 
@@ -508,8 +489,8 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(ToolData *tool
 }
 
 /* Helper function to extract Lua table contents into an array being returned.
-   Here, we expect `lua` to have a table on top of its stack when called. The 
-   extracted number of ULongs is written into `size`. */
+   Here, we expect `lua' to have a table on top of its stack when called. The
+   extracted number of ULongs is written into `size'. */
 /* --------------------------------------------------------------------------*/
 static inline ULong* get_lua_table(lua_State *lua, SizeT *size);
 static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
@@ -598,9 +579,36 @@ int lua_flip_on_memory(lua_State *lua) {
     return 0;
 }
 
+/* --------------------------------------------------------------------------*/
+static inline HChar* get_debug_sym_description(ToolData *tool_data, Addr a) {
+    HChar *description = NULL;
+
+    if(tool_data->with_debug_symbols) {
+        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.description", VG_(free), sizeof(HChar));
+        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.description", VG_(free), sizeof(HChar));
+
+        if (VG_(get_data_description)(dname1v, dname2v, a)) {
+            HChar *d1 = (HChar*) VG_(indexXA)(dname1v, 0);
+            HChar *d2 = (HChar*) VG_(indexXA)(dname2v, 0);
+            SizeT d1s = VG_(strlen)(d1);
+            SizeT d2s = VG_(strlen)(d2);
+            SizeT str_size = d1s + d2s + 3;
+
+            description = (HChar*) VG_(malloc)("fitin.description", str_size);
+            VG_(memcpy)(description, d1, d1s);
+            VG_(memcpy)(description + d1s, "; ", 2);
+            VG_(memcpy)(description + d1s + 2, d2, d2s + 1);
+        }
+
+        VG_(deleteXA)(dname1v);
+        VG_(deleteXA)(dname2v);
+    }
+
+    return description;
+}
 
 /* The method that is performing the bit-flip if applicable. It takes place 
-   inside of `data` and will be returned. */
+   inside of `data' and will be returned. */
 /* --------------------------------------------------------------------------*/
 static inline void flip_or_leave(ToolData *tool_data,
                                  void *data,
@@ -610,28 +618,27 @@ static inline void flip_or_leave(ToolData *tool_data,
         tool_data->monLoadCnt++;
 
         if(tool_data->available_callbacks & 32) {
+            HChar *description = get_debug_sym_description(tool_data, state->location);
+
             LuaFlipPassData lua_data = { tool_data, state, NORMAL };
             lua_getglobal(tool_data->lua, "flip_value");
             lua_pushlightuserdata(tool_data->lua, &lua_data);
             lua_pushinteger(tool_data->lua, state->location);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
             lua_pushinteger(tool_data->lua, (ULong) state->original_size);
+            lua_pushstring(tool_data->lua, description);
 
-            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+            if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
 
                 if(size > 0) {
                     if(VG_(clo_verbosity) > 1) {
-                        XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                        XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                        if (VG_(get_data_description)(dname1v, dname2v, state->location)) {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) state->location, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
+                        if(description != NULL) {
+                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", (void*) state->location, description);
                         } else {
                             VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) state->location);
                         }
-                        VG_(deleteXA)(dname1v);
-                        VG_(deleteXA)(dname2v);
                     }
 
                     flip_bits(data, state->size, table, size);
@@ -642,39 +649,39 @@ static inline void flip_or_leave(ToolData *tool_data,
             } else {
                 VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
             }
+
+            if(description != NULL) {
+                VG_(free)(description);
+            }
         }
     }
 }
 
 /* --------------------------------------------------------------------------*/
-inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size);
-inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
+static inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
     tool_data->loads++;
     tool_data->monLoadCnt++;
 
     if(tool_data->available_callbacks & 32) {
+        HChar *description = get_debug_sym_description(tool_data, a);
+
         LuaFlipPassData lua_data = { NULL, NULL, MEMORY };
         lua_getglobal(tool_data->lua, "flip_value");
         lua_pushlightuserdata(tool_data->lua, &lua_data);
         lua_pushinteger(tool_data->lua, (ULong) a);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
         lua_pushinteger(tool_data->lua, (ULong) size);
+        lua_pushstring(tool_data->lua, description);
 
-        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+        if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
             if(table_size > 0) {
                 if(VG_(clo_verbosity) > 1) {
-                    XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                    XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                    if (VG_(get_data_description)(dname1v, dname2v, a)) {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) a, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
-                    } else {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) a);
-                    }
-                    VG_(deleteXA)(dname1v);
-                    VG_(deleteXA)(dname2v);
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", (void*) a, description);
+                } else {
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) a);
                 }
 
                 flip_bits((void*) a, size, table, table_size);
@@ -685,11 +692,15 @@ inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
         }
+
+        if(description != NULL) {
+            VG_(free)(description);
+        }
     }
 }
 
 /* Wrapper for fi_reg_flip_or_leave_mem to be inserted before an IRDirty that
-   reads on `a` by `size` bytes. */
+   reads on `a' by `size' bytes. */
 /* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(3) fi_reg_flip_or_leave_mem_wrap(ToolData *tool_data,
                                                          Addr a,
@@ -720,7 +731,7 @@ inline void fi_reg_flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
 }
 
 /* Helper to extract a byte-precise address. This can be used to do the actual
-   flip. It tests whether `bit` is located inside of `a` + `size`. If not,
+   flip. It tests whether `bit' is located inside of `a' + `size'. If not,
    this will return NULL. */
 /* --------------------------------------------------------------------------*/
 static inline UChar* get_destination_address(void *a, SizeT size, UChar bit) {
@@ -734,7 +745,7 @@ static inline UChar* get_destination_address(void *a, SizeT size, UChar bit) {
     return NULL;
 }
 
-/* Flip peforming method, to flip `bit` in the given `byte`. Reduces code
+/* Flip peforming method, to flip `bit' in the given `byte'. Reduces code
    duplication. */
 /* --------------------------------------------------------------------------*/
 static inline UChar flip_byte_at_bit(UChar byte, UChar bit) {
@@ -822,8 +833,8 @@ static inline IRTemp insert_size_widener(ToolData *tool_data,
 }
 
 /* Whenever an RdTmp occurs, this function needs to be called to manage 
-   all necessary things, and inserting the helper. Needs `loads` for
-   doing a relevance check for `tmp`. */
+   all necessary things, and inserting the helper. Needs `loads' for
+   doing a relevance check for `tmp'. */
 /* --------------------------------------------------------------------------*/
 static inline IRTemp instrument_access_tmp(ToolData *tool_data,
                                            XArray *loads,
@@ -1007,7 +1018,7 @@ inline Bool fi_reg_skip_on_resize(IRExpr *expr) {
 }
 
 /* This method adds a resizer for 32->64 or 64-32 if converting operation `op`
-   is incompatible to the temp of `data`.
+   is incompatible to the temp of `data'.
 
    This will produce many neutralizing statements, but it works while preserving
    usability of the replacing-algorithm. Should be optimized. */
@@ -1040,7 +1051,7 @@ static inline IRTemp insert_64bit_resizer(IRTemp src_tmp, IRSB *sb) {
 
 /* Basically the same as instrument_access_tmp. But to be used on RdTmp on
    a Store instruction. This one also gets the destination expression
-   `address`. */
+   `address'. */
 /* --------------------------------------------------------------------------*/
 static inline IRTemp instrument_access_tmp_on_store(ToolData *tool_data,
                                                     XArray *loads,
@@ -1159,8 +1170,8 @@ inline Bool fi_reg_instrument_store(ToolData *tool_data,
     return False;
 }
 
-/* Helper to add a replacement entry into `list`, replacing `old_temp` by 
-   `new_temp`. */
+/* Helper to add a replacement entry into `list', replacing `old_temp' by
+   `new_temp'. */
 /* --------------------------------------------------------------------------*/
 static inline void add_replacement(XArray *list, IRTemp old_temp, IRTemp new_temp) {
     ReplaceData data = (ReplaceData) { old_temp, new_temp };
@@ -1190,8 +1201,8 @@ static inline void replace_temps(XArray *replacements, IRExpr **expr) {
     }
 }
 
-/* To be used if the new temp `temp` is already determined to replace the one 
-   of `expr`. */
+/* To be used if the new temp `temp' is already determined to replace the one
+   of `expr'. */
 /* --------------------------------------------------------------------------*/
 static inline void replace_temp(IRTemp temp, IRExpr **expr) {
     *expr = deepCopyIRExpr(*expr);
@@ -1236,7 +1247,7 @@ inline void fi_reg_add_pre_dirty_modifiers_mem(ToolData *tool_data,
 
 }
 
-/* This method checks the signature of dirty-call `st` and fxState `nFx` to
+/* This method checks the signature of dirty-call `st' and fxState `nFx' to
    determine the offsets that are used. */
 /* --------------------------------------------------------------------------*/
 static inline void analyze_dirty_and_add_modifiers(ToolData *tool_data,
@@ -1269,7 +1280,7 @@ static inline void analyze_dirty_and_add_modifiers(ToolData *tool_data,
     }
 }
 
-/* For a given offset `j`, originating from offset `initial_offset`,
+/* For a given offset `j', originating from offset `initial_offset',
    this method will look for the occupancies of this offset and prevents
    collisions (multiple calls on the same IRTemp). */
 /* --------------------------------------------------------------------------*/
@@ -1293,7 +1304,7 @@ static inline void add_modifier_for_offset(ToolData *tool_data,
 }
 
 /* Wrapper for fi_reg_flip_or_leave_registers to be called from VEX IR,
-   this will read the data from `offset` at `bp` and write back the flipped
+   this will read the data from `offset' at `bp' and write back the flipped
    value. This is called before reg-reading IRDirty calls. */
 /* --------------------------------------------------------------------------*/
 static void VEX_REGPARM(0) fi_reg_flip_or_leave_registers_wrap(void *bp,
@@ -1385,8 +1396,8 @@ inline void fi_reg_flip_or_leave_registers(ToolData *tool_data,
     }
 }
 
-/* Performs a flip on a given buffer `buffer` within `size`,  supports write-back
-   for register `offset`.*/
+/* Performs a flip on a given buffer `buffer' within `size',  supports write-back
+   for register `offset'.*/
 /* -------------------------------------------------------------------------------*/
 static inline void flip_or_leave_on_buffer(ToolData *tool_data, 
                                            UChar *buffer,
@@ -1398,28 +1409,25 @@ static inline void flip_or_leave_on_buffer(ToolData *tool_data,
     void *origin = (void*) tool_data->reg_origins[offset];
 
     if(tool_data->available_callbacks & 32) {
+        HChar *description = get_debug_sym_description(tool_data, (Addr) origin);
+
         LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset };
         lua_getglobal(tool_data->lua, "flip_value");
         lua_pushlightuserdata(tool_data->lua, &lua_data);
         lua_pushinteger(tool_data->lua, (ULong) origin);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
         lua_pushinteger(tool_data->lua, (ULong) size);
+        lua_pushstring(tool_data->lua, description);
 
-        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
+        if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
             if(table_size > 0) {
                 if(VG_(clo_verbosity) > 1) {
-                    XArray* dname1v = VG_(newXA)(VG_(malloc), "fitin.dname1v", VG_(free), sizeof(HChar));
-                    XArray* dname2v = VG_(newXA)(VG_(malloc), "fitin.dname2v", VG_(free), sizeof(HChar));
-                    if (VG_(get_data_description)(dname1v, dname2v, (Addr) origin)) {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s %s\n", (void*) origin, (HChar*)VG_(indexXA)(dname1v, 0), (HChar*)VG_(indexXA)(dname2v, 0));
-                    } else {
-                        VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) origin);
-                    }
-                    VG_(deleteXA)(dname1v);
-                    VG_(deleteXA)(dname2v);
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", origin, description);
+                } else {
+                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", origin);
                 }
 
                 flip_bits(buffer, size, table, table_size);
@@ -1429,6 +1437,10 @@ static inline void flip_or_leave_on_buffer(ToolData *tool_data,
             lua_pop(tool_data->lua, 1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
+        }
+
+        if(description != NULL) {
+            VG_(free)(description);
         }
     }
 }

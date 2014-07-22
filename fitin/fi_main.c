@@ -89,6 +89,7 @@ static void initTData(void) {
     tData.lua_script = NULL;
     tData.lua = NULL;
     tData.available_callbacks = 0;
+    tData.with_debug_symbols = False;
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -112,8 +113,7 @@ static inline Bool instInFunc(Addr instAddr, const HChar *fnc) {
 
 /* If the stack shrinks the Monitorables should be inbalidated */
 /* --------------------------------------------------------------------------*/
-static __inline__
-void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
+static inline void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
     Word size = 0, i = 0;
     XArray *mons = tData.monitorables;
 
@@ -287,7 +287,7 @@ static int lua_remove_address(lua_State *lua) {
     return 0;
 }
 
-/* Registers FITIn own's Lua methods to context `td`. */
+/* Registers FITIn own's Lua methods to context `td'. */
 /* --------------------------------------------------------------------------*/
 static void register_lua_cfunctions(ToolData *td) {
     /* Optional persistance of flip. */
@@ -345,17 +345,31 @@ static void init_lua(void) {
 
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
-    if(VG_(clo_verbosity) > 1) {
-        VG_(needs_var_info)();
-    }
     if(tData.lua_script != NULL) {
         init_lua();
         
         if(tData.available_callbacks & 1) {
             lua_getglobal(tData.lua, "before_start");
-            if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
+            if(!lua_pcall(tData.lua, 0, 1, 0) == 0) {
                 VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
             }
+            if(lua_isnumber(tData.lua, -1)) {
+                ULong mode = lua_tonumber(tData.lua, -1);
+
+                /* Check for reading debug symbols. */
+                if(mode & 1) {
+                    tData.with_debug_symbols = True;
+                }
+            }
+            lua_pop(tData.lua, 1);
+        }
+
+        if(VG_(clo_verbosity) > 1) {
+            tData.with_debug_symbols = True;
+        }
+
+        if(tData.with_debug_symbols) {
+            VG_(needs_var_info)();
         }
     } else {
         exit_for_invalid_lua();
@@ -460,7 +474,7 @@ static LoadData* instrument_load(ToolData *td, IRExpr *expr, IRSB *sbOut) {
     return NULL;
 }
 
-/* Allocates shadow register fields, with `size` being the guest state size. */
+/* Allocates shadow register fields, with `size' being the guest state size. */
 /* --------------------------------------------------------------------------*/
 static inline void initialize_register_lists(Int size) {
     tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
@@ -967,7 +981,7 @@ static void fi_fini(Int exitcode) {
     VG_(printf)("[FITIn]   Instructions executed: %lu\n", (unsigned long) tData.instCnt);
 }
 
-/* Adds an address `a` of `size`  to context `td`. */
+/* Adds an address `a' of `size'  to context `td'. */
 /* --------------------------------------------------------------------------*/
 static void fi_add_address(ToolData *td, Addr a, SizeT size) {
     //Initialize and add monitorable to list
@@ -994,7 +1008,7 @@ static void fi_add_address(ToolData *td, Addr a, SizeT size) {
     }
 }
 
-/* Removes a given address `a`, last registered on `size` from context `td` of
+/* Removes a given address `a', last registered on `size' from context `td' of
  * active addresses. */
 /* --------------------------------------------------------------------------*/
 static void fi_remove_address(ToolData *td, Addr a, SizeT size) {
@@ -1097,9 +1111,9 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
     }
 }
 
-/* This method will check for every `size` bytes, beginning at `a` whether there
+/* This method will check for every `size' bytes, beginning at `a' whether there
    exists a monitorable. Otherwise, we can't handle bytes that are located away
-   from `a`, such as arrays or strings. */
+   from `a', such as arrays or strings. */
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {

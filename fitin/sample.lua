@@ -7,7 +7,7 @@
 -- In general, FITIn looks for various callbacks and invokes them
 -- when applicable.
 --
--- tl;wr : Scroll down to `flip_value`.
+-- tl;wr : Scroll down to `flip_value'.
 
 -- General notes, READ THEM CAREFULLY!
 --
@@ -36,7 +36,7 @@
 --
 -- This callback is used once per superblock before instrumentation. If
 -- the binary contains debugging symbols (-g/-g3), more options than
--- `address` become non-empty.
+-- `address' become non-empty.
 --
 --   * address:integer: The initial address of the superblock.
 --   * fnname:string: Name of the superblock's function.
@@ -69,7 +69,7 @@ end
 --   * size:integer: The size given to this address.
 --
 -- Expected return: boolean. True or false for selecting specific
--- variables. The ones rejected will not be receive a `flip_value` call.
+-- variables. The ones rejected will not be receive a `flip_value' call.
 -- 
 -- If missing: FITIn only selects addresses having a code annotation.
 -- The following listing is only for demonstration.
@@ -86,10 +86,14 @@ end
 --
 --   * state: Context data you cannot read or modify in Lua.
 --   * address:integer: The address of the value to flip.
---   * counter:integer: A global counter value for every call on `flip_value`.
+--   * counter:integer: A global counter value for every call on `flip_value'.
 --   * size:integer: The size of this value in byte.
+--   * desc:string: A Valgrind-formatted string describing the target by
+--     information taken from the debug symbols. You need to run
+--     `--verbose' or enable debug symbols by `before_start' to get this
+--     string. If not, this is nil. Otherwise it can be nil as well.
 --
---  Expected return: array. You can use `{}` as an empty array to state
+--  Expected return: array. You can use `{}' as an empty array to state
 --  "don't touch", e.g. for doing dry-runs. Otherwise, each element of
 --  the array must be an integer. In FITIn-Lua, every integer takes
 --  64bits, regardless of the platform. In the case that you know that
@@ -103,21 +107,21 @@ end
 --
 --  NOTE: By default, none of your flips become persistant (except by
 --  syscalls operating directly on RAM), being lost after the next
---  reload. To prevent this, you can call `persist_flip` from this
+--  reload. To prevent this, you can call `persist_flip' from this
 --  function.
 --
 --  persist_flip
 --
---    * state: Please use the `state` variable from the same scope.
+--    * state: Please use the `state' variable from the same scope.
 --    * bit-patterns: array. An array of the same type as the return
---      value of `flip_value`. It's your choice whether they are the
+--      value of `flip_value'. It's your choice whether they are the
 --      same or not.
 --
 --  If your array contains more bytes than technically possible for a
---  register-ready value, `persist_flip` will write on later bytes in
+--  register-ready value, `persist_flip' will write on later bytes in
 --  memory if the registered value is larger. Think of a C-struct.
 --
-flip_value = function(state, address, counter, size)
+flip_value = function(state, address, counter, size, desc)
   -- on the third global access to selected variables
   if counter == 3 then
     -- bit-flip pattern (LSB->MSB): 000001000...
@@ -135,10 +139,18 @@ end
 -- The callback is called once before starting the program. You can use
 -- it for initialization or logging.
 --
--- No parameters, no returns, no dependent actions.
+-- Optional return: integer. The return value may control certain
+-- execution options by bits set. Currently available:
+--
+--   * 2^0: If set, Valgrind will try to read debugging symbols from the
+--     program. Regardless of this option, this will also happen when using
+--     `--verbose' command line option. While this may lead to a little
+--     launch delay, this allows reading target description strings
+--     provided by Valgrind when flipping.
 --
 -- before_start = function()
 --   print("Hello!")
+--   return 1
 -- end
 
 -- after_end:
@@ -195,7 +207,7 @@ end
 --
 --   * address:integer: The address where you want the bit flip to take place.
 --   * size:integer: The size of the data that you want to flip.
---   * pattern:array. Bit-patterns as if returned by `flip_value`.
+--   * pattern:array. Bit-patterns as if returned by `flip_value'.
 --
 -- No return value.
 --
