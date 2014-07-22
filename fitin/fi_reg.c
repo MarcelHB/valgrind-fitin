@@ -887,13 +887,11 @@ static inline IRTemp instrument_access_tmp(ToolData *tool_data,
             reload = True;
         }
 
-        /* Skip registering memory writing if not enabled. */
-        if(tool_data->write_back_flip) {
-            /* Open issue: Can we predict the exact byte here w.r.t. full_size? */
-            dirty->mAddr = load_data->addr;
-            dirty->mSize = 1;
-            dirty->mFx = Ifx_Write;
-        }
+        /* Must assume `persist_flip' call. Claim what is possible:
+           Cannot cover e.g. manual `flip_on_address' calls. */
+        dirty->mAddr = load_data->addr;
+        dirty->mSize = sizeofIRType(ty);
+        dirty->mFx = Ifx_Write;
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);
@@ -1107,13 +1105,10 @@ static inline IRTemp instrument_access_tmp_on_store(ToolData *tool_data,
 
         }
 
-        /* Skip registering memory writing if not enabled. */
-        if(tool_data->write_back_flip) {
-            /* Open issue: Can we predict the exact byte here w.r.t to full_size? */
-            dirty->mAddr = load_data->addr;
-            dirty->mSize = 1;
-            dirty->mFx = Ifx_Write;
-        }
+        /* See instrument_access_tmp. */
+        dirty->mAddr = load_data->addr;
+        dirty->mSize = sizeofIRType(ty);
+        dirty->mFx = Ifx_Write;
         dirty->tmp = new_temp;
 
         st = IRStmt_Dirty(dirty);

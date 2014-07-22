@@ -60,8 +60,6 @@ typedef struct ToolData {
     XArray *monitorables;
     // Counter for overall monitored loads
     ULong monLoadCnt;
-    /* Option that enables persisting of flips by writing them to memory. */
-    Bool write_back_flip;
     /* Execution-time list of load information. */
     XArray *load_states;
     /* Flag indicating whether shadow registers have been allocated. */
