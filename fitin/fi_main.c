@@ -40,7 +40,6 @@
 #include "pub_tool_replacemalloc.h"
 #include "pub_tool_xarray.h"
 #include "pub_tool_aspacemgr.h"
-#include "libvex_guest_amd64.h"
 
 #include "fitin.h"
 #include "fi_reg.h"
