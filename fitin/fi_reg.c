@@ -217,7 +217,7 @@ inline Bool fi_reg_set_passive_occupancy(ToolData *tool_data,
                                               mkIRExpr_HWord(offset),
                                               mkIRExpr_HWord(size),
                                               IRExpr_RdTmp(load_data->state_list_index));
-                IRDirty *dirty = unsafeIRDirty_0_N(0,
+                IRDirty *dirty = unsafeIRDirty_0_N(3,
                                                    "fi_reg_set_occupancy_origin",
                                                    VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
                                                    args);
@@ -264,7 +264,7 @@ inline void fi_reg_set_occupancy(ToolData *tool_data,
                                  mkIRExpr_HWord(offset),
                                  mkIRExpr_HWord(size),
                                  IRExpr_RdTmp(load_data->state_list_index));
-            dirty = unsafeIRDirty_0_N(0,
+            dirty = unsafeIRDirty_0_N(3,
                                       "fi_reg_set_occupancy_origin",
                                       VG_(fnptr_to_fnentry)(&fi_reg_set_occupancy_origin),
                                       args);
