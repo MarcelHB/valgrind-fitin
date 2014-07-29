@@ -30,13 +30,13 @@
 #include "../../include/valgrind/fi_client.h"
 
 int main() {
-    float a = 1.25, b = 0;
+    double a = 1.25, b = 0;
     FITIN_MONITOR_VARIABLE(a);
 
     b += a;
     b += a;
     b += a;
 
-    printf("%.2f\n", a);
+    printf("%.17f\n", a);
     return 0;
 }

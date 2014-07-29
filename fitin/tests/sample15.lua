@@ -8,8 +8,8 @@ end
 
 flip_value = function(state, address, counter, size)
   if counter == 2 then
-    persist_flip(state, {2 ^ 31})
-    return {2 ^ 31}
+    persist_flip(state, {2 ^ 63})
+    return {2 ^ 63}
   else
     return {}
   end

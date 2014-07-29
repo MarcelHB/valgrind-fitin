@@ -92,7 +92,7 @@
         "title": "Persist float flip on --persist-flip=yes.",
         "files": ["sample15.c"],
         "output": "sample15",
-        "expected": "-1.25"
+        "expected": "-1.25000000000000000"
     },{
         "title": "Works with floats on function calls (compiler-noisy!).",
         "files": ["sample16.c"],
