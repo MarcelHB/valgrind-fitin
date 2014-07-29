@@ -200,6 +200,15 @@ end
 --   Note: There is no return value. Use add_address here to flag
 --   individual cells for being monitored.
 
+-- breakpoint:
+--
+-- Called whenever the code hits a FITIN_BREAKPOINTi macro. Can be used to pass
+-- data to the script aside from any other callbacks.
+--
+--   * a,b,c,d,e:integer: arbitrary integer values. 0 if not set.
+--
+-- No Return.
+
 -- Can be called directly from virtually any callback:
 --
 --

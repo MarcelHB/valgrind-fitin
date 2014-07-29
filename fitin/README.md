@@ -52,6 +52,8 @@ macros:
 
 * ```FITIN_MONITOR_VARIABLE(var)```
 * ```FITIN_MONITOR_MEMORY(addr, size)```
+* ```FITIN_BREAKPOINT```
+* ```FITIN_BREAKPOINTi(a1,..,ai)``` (integer messages)
 
 Then compile the source code. Deactivating any optimization levels is
 strongly recommended, as optimazations by the compiler may render this

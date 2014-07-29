@@ -94,9 +94,9 @@ typedef struct {
 /* Helper function to properly add a LoadData into the appropriate list. */
 void fi_reg_add_temp_load(XArray *list, LoadData* data);
 
-/* On GET, this method will test whether `expr` maps to a relevent occupancy,
+/* On GET, this method will test whether `expr' maps to a relevent occupancy,
    and in this case, it adds a copy of that original temp to the loads for
-   `new_temp` with type `ty`. The return value states whther this expr was a
+   `new_temp' with type `ty'. The return value states whther this expr was a
    GET. */
 Bool fi_reg_add_load_on_get(ToolData *tool_data,
                             XArray *loads,
@@ -107,7 +107,7 @@ Bool fi_reg_add_load_on_get(ToolData *tool_data,
 
 /* Don't tell don't ask for casts: We ignore casts completely, both for
  * accessing and instrumenting, but also for considering the resized values
- * as replacements. If `expr` is a cast UnOp, it returns true. */
+ * as replacements. If `expr' is a cast UnOp, it returns true. */
 Bool fi_reg_skip_on_resize(IRExpr *expr);
 
 /* Method to be called on IRDirty to check the need for reg-read helpers and
@@ -116,24 +116,24 @@ void fi_reg_add_pre_dirty_modifiers(ToolData *tool_data,
                                     IRDirty *di,
                                     IRSB *sb);
 
-/* The same as above, but for memory accesses by an IRDirty on `address` by
-   `size` bytes. */
+/* The same as above, but for memory accesses by an IRDirty on `address' by
+   `size' bytes. */
 void fi_reg_add_pre_dirty_modifiers_mem(ToolData *tool_data,
                                         IRExpr *address,
                                         Int size,
                                         IRSB *sb);
 
-/* Whenever a PUT to an `offset` occurs, this method will analyze the
-   expression `expr` for its relevancy and add the runtime helpers. */
+/* Whenever a PUT to an `offset' occurs, this method will analyze the
+   expression `expr' for its relevancy and add the runtime helpers. */
 void fi_reg_set_occupancy(ToolData *tool_data,
                           XArray *loads,
                           Int offset,
                           IRExpr *expr,
                           IRSB *sb);
 
-/* Whenever a PUT to an `offset` occurs, this method will analyze the
-   expression `expr` for its relevancy for passive tmps, that are known to
-   have no actual use inside the current `sb` (listed in `pre_reg_markers`, 
+/* Whenever a PUT to an `offset' occurs, this method will analyze the
+   expression `expr' for its relevancy for passive tmps, that are known to
+   have no actual use inside the current `sb' (listed in `pre_reg_markers', 
    and add the runtime helpers. */
 Bool fi_reg_set_passive_occupancy(ToolData *tool_data,
                                   XArray *loads,
@@ -150,18 +150,18 @@ Int fi_reg_compare_loads(const void *l1, const void *l2);
 Int fi_reg_compare_replacements(const void *l1, const void *l2);
 
 /* This method must be used if we know that data is definitely read from 
-   memory (syscall). It takes the address `a` and the size `size` to check
+   memory (syscall). It takes the address `a' and the size `size' to check
    for proper modBit. For obvious reasons, persist-flip option is irrelevant. */
 void fi_reg_flip_or_leave_mem(ToolData *ToolData, Addr a, SizeT size);
 
-/* This method can be used to operate on a memory image `buffer` of Valgrind's
-   register shadow table, flipping at `offset` inside `size` bytes. */
+/* This method can be used to operate on a memory image `buffer' of Valgrind's
+   register shadow table, flipping at `offset' inside `size' bytes. */
 void fi_reg_flip_or_leave_registers(ToolData *tool_data,
                                     UChar *buffer,
                                     PtrdiffT offset,
                                     SizeT size);
-/* Recursive method that iterates into `expr` to find all sub-expressions and
-   to instrument all accesses. `replace_only` will skip instrumentation. */
+/* Recursive method that iterates into `expr' to find all sub-expressions and
+   to instrument all accesses. `replace_only' will skip instrumentation. */
 void fi_reg_instrument_access(ToolData *tool_data,
                               XArray *loads,
                               XArray *replacements,
@@ -169,8 +169,8 @@ void fi_reg_instrument_access(ToolData *tool_data,
                               IRSB *sb,
                               Bool replace_only);
 
-/* Method to be called on a Store instruction. Needs all the lists, `expr`
-   as the pointer to the expression to store, `address` as destination.
+/* Method to be called on a Store instruction. Needs all the lists, `expr'
+   as the pointer to the expression to store, `address' as destination.
    The return value indicates whether the expr was a RdTmp. */
 Bool fi_reg_instrument_store(ToolData *tool_data,
                              XArray *loads,
@@ -179,8 +179,8 @@ Bool fi_reg_instrument_store(ToolData *tool_data,
                              IRExpr *address,
                              IRSB *sb);
 
-/* This function can be directly called from inside Lua on `flip_value`. It
-   has to pass the given pointer `data` and an array of bit patterns. */
+/* This function can be directly called from inside Lua on `flip_value'. It
+   has to pass the given pointer `data' and an array of bit patterns. */
 int lua_persist_flip(lua_State *lua);
 
 /* From virtually any callback, the user can call this method with

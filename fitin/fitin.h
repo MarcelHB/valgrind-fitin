@@ -47,6 +47,7 @@
 #define CALLBACK_ADDRESS  16
 #define CALLBACK_FLIP     32
 #define CALLBACK_FIELD    64
+#define CALLBACK_BP       128
 
 // This is a data structure to store tool specific data.
 typedef struct ToolData {

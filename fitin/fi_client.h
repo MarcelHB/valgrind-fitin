@@ -31,12 +31,13 @@
 
 #include "valgrind.h"
 
-typedef  enum {
+typedef enum {
     VG_USERREQ__MON_VAR = VG_USERREQ_TOOL_BASE('F','I'),
     VG_USERREQ__MON_MEM,
     VG_USERREQ__UMON_VAR,
     VG_USERREQ__UMON_MEM,
-    VG_USERREQ__MON_FIELD
+    VG_USERREQ__MON_FIELD,
+    VG_USERREQ__BP
 } Vg_FITInClientRequest;
 
 /*
@@ -61,9 +62,9 @@ typedef  enum {
 /*
  * Triggers the callback monitor_field.
  *
- * Requires base address `mem`, total bytes `size`, an array `dims`
+ * Requires base address `mem', total bytes `size', an array `dims'
  * holding n entries for n dimension, each one describing the dimension's
- * size and `dims_size` to be n.
+ * size and `dims_size' to be n.
  */
 #define FITIN_MONITOR_FIELD(mem, size, dims, dims_size) \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__MON_FIELD, (mem), (size), \
@@ -88,5 +89,21 @@ typedef  enum {
 #define FITIN_UNMONITOR_MEMORY(mem, size)                               \
   VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__UMON_MEM,                 \
                                   (mem), (size), 0, 0, 0)
+
+/*
+   Jump into Lua breakpoint callback.
+
+   a-e: Arbitrary ptr-width arguments to be passed through to LUA
+ */
+#define FITIN_BREAKPOINT5(a, b, c, d,e)                               \
+  VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ__BP,                     \
+                                  (a), (b), (c), (d), (e))
+
+#define FITIN_BREAKPOINT4(a, b, c, d) FITIN_BREAKPOINT5(a, b, c, d, 0)
+#define FITIN_BREAKPOINT3(a, b, c) FITIN_BREAKPOINT5(a, b, c, 0, 0)
+#define FITIN_BREAKPOINT2(a, b) FITIN_BREAKPOINT5(a, b, 0, 0, 0)
+#define FITIN_BREAKPOINT1(a) FITIN_BREAKPOINT5(a, 0, 0, 0, 0)
+#define FITIN_BREAKPOINT FITIN_BREAKPOINT5(0, 0, 0, 0, 0)
+
 
 #endif

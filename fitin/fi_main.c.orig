@@ -40,15 +40,18 @@
 #include "pub_tool_replacemalloc.h"
 #include "pub_tool_xarray.h"
 #include "pub_tool_aspacemgr.h"
+#include "libvex_guest_amd64.h"
 
 #include "fitin.h"
 #include "fi_reg.h"
 
+#ifdef FITIN_WITH_LUA
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#endif
 
-static const size_t MAX_STR_SIZE = 512;
+static const unsigned int MAX_STR_SIZE = 512;
 typedef enum exitValues {
     EXIT_SUCCESS,
     EXIT_FAIL,
@@ -57,10 +60,31 @@ typedef enum exitValues {
 
 static void fi_fini(Int exitcode);
 
-static void fi_add_address(ToolData*, Addr, SizeT);
-static void fi_remove_address(ToolData*, Addr, SizeT);
+/* Monitorables are basically memory locations of which the load operations are counted.
+   These ma be extendend du to the needs of the tool.
+*/
+typedef struct _Monitorable {
+    // Monitorable memory address; TODO: Find out how to reset it. (after function return?)
+    Addr monAddr;
+    // The size of one monitorable element
+    UWord monSize;
+    // The number of monitorable elements (i.e. array elements)
+    UWord monLen;
+    // # of loads
+    ULong monLoads;
+    // # of stores
+    ULong monWrites;
+    // valid address (may be invalidated due to function return)
+    Bool monValid;
+    // Bit to pos modified (only valid if modIteration != 0)
+    UChar modBit;
+    // # of loads until modification. (0 means never, 1 means on first load and so on)
+    ULong modIteration;
+    // Last write instruction
+    ULong monLstWriteIsn;
+} Monitorable;
 
-static ToolData tData;
+static toolData tData;
 
 /* Compare two Monitorables. Needed for an ordered list */
 /* --------------------------------------------------------------------------*/
@@ -79,16 +103,23 @@ static Int cmpMonitorable (const void *v1, const void *v2) {
 /* --------------------------------------------------------------------------*/
 static void initTData(void) {
     tData.loads = 0;
+    tData.filter = MT_FILTFUNC;
+    tData.filtstr = (HChar*) "main";
     tData.instCnt = 0;
+    tData.instLmt = 0;
+    tData.modMemLoadTime = 1;
+    tData.modBit = 0;
     tData.monLoadCnt = 0;
+    tData.goldenRun = False;
     tData.reg_temp_occupancies = NULL;
     tData.reg_origins = NULL;
     tData.reg_load_sizes = NULL;
     tData.runtime_active = True;
+#ifdef FITIN_WITH_LUA
     tData.lua_script = NULL;
     tData.lua = NULL;
     tData.available_callbacks = 0;
-    tData.with_debug_symbols = False;
+#endif
 
     tData.monitorables = VG_(newXA)(VG_(malloc), "tData.init", VG_(free), sizeof(Monitorable));
     VG_(setCmpFnXA)(tData.monitorables, cmpMonitorable);
@@ -112,7 +143,8 @@ static inline Bool instInFunc(Addr instAddr, const HChar *fnc) {
 
 /* If the stack shrinks the Monitorables should be inbalidated */
 /* --------------------------------------------------------------------------*/
-static inline void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
+static __inline__
+void fi_stop_using_mem_stack(const Addr a, const SizeT len) {
     Word size = 0, i = 0;
     XArray *mons = tData.monitorables;
 
@@ -162,7 +194,8 @@ static inline Bool monitorInst(Addr instAddr) {
     if(VG_(get_fnname_kind_from_IP)(instAddr) == Vg_FnNameBelowMain) {
         return False;
     }
-    if(tData.available_callbacks & CALLBACK_TREAT_SB) {
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 8) {
         HChar fnname[MAX_STR_SIZE];
         HChar filename[MAX_STR_SIZE];
         HChar dirname[MAX_STR_SIZE];
@@ -193,13 +226,30 @@ static inline Bool monitorInst(Addr instAddr) {
     } else {
         return True;
     }
-    return False;
+#else
+    switch (tData.filter) {
+        case MT_FILTFUNC:
+            return instInFunc(instAddr, tData.filtstr);
+        case MT_FILTINCL:
+            return instInInclude(instAddr, tData.filtstr);
+        default:
+            tl_assert(0);
+            break;
+    }
+#endif
 }
 
 /* A simple instruction counter. */
 /* --------------------------------------------------------------------------*/
 static inline void incrInst(void) {
     tData.instCnt++;
+
+#ifndef FITIN_WITH_LUA
+    if(tData.instLmt && tData.instCnt >= tData.instLmt) {
+        fi_fini(EXIT_STOPPED);
+        VG_(exit)(0);
+    }
+#endif
 }
 
 /* FITIn uses several command line options.
@@ -209,11 +259,29 @@ static inline void incrInst(void) {
 static Bool fi_process_cmd_line_option(const HChar *arg) {
     const HChar* tmp_string = NULL;
 
-    if VG_STR_CLO(arg, "--control-script", tmp_string) {
+    if VG_STR_CLO(arg, "--fnname", tmp_string) {
+        tData.filtstr = (HChar*) tmp_string;
+        tData.filter = MT_FILTFUNC;
+    } else if VG_STR_CLO(arg, "--include", tmp_string) {
+        tData.filtstr = (HChar*) tmp_string;
+        tData.filter = MT_FILTINCL;
+    } else if VG_INT_CLO(arg, "--mod-load-time", tData.modMemLoadTime) {}
+    else if VG_INT_CLO(arg, "--mod-bit", tData.modBit) {}
+    else if VG_INT_CLO(arg, "--inst-limit", tData.instLmt) {}
+    else if VG_BOOL_CLO(arg, "--golden-run", tData.goldenRun) {}
+    else if VG_BOOL_CLO(arg, "--persist-flip", tData.write_back_flip) {}
+    else if VG_BOOL_CLO(arg, "--all-addresses", tData.ignore_monitorables) {}
+#ifdef FITIN_WITH_LUA 
+    else if VG_STR_CLO(arg, "--control-script", tmp_string) {
         tData.lua_script = (HChar*) tmp_string;
-    }else {
+    }
+#endif
+    else {
         return False;
     }
+
+    tl_assert(tData.filtstr);
+    tl_assert(tData.filtstr[0]);
 
     return True;
 }
@@ -221,8 +289,25 @@ static Bool fi_process_cmd_line_option(const HChar *arg) {
 /* --------------------------------------------------------------------------*/
 static void fi_print_usage(void) {
     VG_(printf)(
+#ifdef FITIN_WITH_LUA
         "    --control-script=<path>   A control script written in Lua.       \n"
         "                              Contains control callbacks.            \n"
+#else
+        "    --golden-run=[yes|no]     States whether this is the golden run. \n"
+        "                              The golden run just monitors, no modify\n"
+        "    --persist-flip=[yes|no]   Writes flipped data back to its memory \n"
+        "                              origin.\n"
+        "    --fnname=<name>           Monitor instructions in functon <name> \n"
+        "                              [Main].\n"
+        "    --include=<dir>           Monitor instructions which have debug  \n"
+        "                              information from this directory.       \n"
+        "    --mod-load-time=<number>  Modify at a given load time [0].       \n"
+        "    --mod-bit=<number>        Modify the given bit of the target.    \n"
+        "    --inst-limit=<number>     The maximum numbers of instructions to \n"
+        "                              be executed. To prevent endless loops. \n"
+        "    --all-addresses=[yes|no]  Considers every load address as rele-  \n"
+        "                              vant: No need for macros.\n"
+#endif
     );
 }
 
@@ -233,6 +318,7 @@ static void fi_print_debug_usage(void) {
     );
 }
 
+#ifdef FITIN_WITH_LUA
 /* --------------------------------------------------------------------------*/
 static const HChar* testable_lua_functions[] = {
     "before_start",
@@ -240,9 +326,7 @@ static const HChar* testable_lua_functions[] = {
     "next_block",
     "treat_superblock",
     "monitor_address",
-    "flip_value",
-    "monitor_field",
-    "breakpoint"
+    "flip_value"
 };
 
 /* --------------------------------------------------------------------------*/
@@ -250,10 +334,6 @@ static void exit_for_invalid_lua(void) {
     VG_(printf)("Cannot launch FITIn without valid --control-script!\n");
     VG_(exit)(1);
 }
-
-#ifdef FITIN_WITH_LUA_LOCKS
-#include "lua/src/lfs.h"
-#endif
 
 /* --------------------------------------------------------------------------*/
 static const luaL_Reg fitin_lualibs[] = {
@@ -265,66 +345,21 @@ static const luaL_Reg fitin_lualibs[] = {
     {LUA_STRLIBNAME, luaopen_string},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_MATHLIBNAME, luaopen_math},
-#ifdef FITIN_WITH_LUA_LOCKS
-    {"lfs", luaopen_lfs},
-#endif
     {NULL, NULL}
 };
 
 /* --------------------------------------------------------------------------*/
-static int lua_add_address(lua_State *lua) {
-    Addr a = (Addr) lua_tonumber(lua, -2);
-    SizeT size = (SizeT) lua_tonumber(lua, -1);
-    fi_add_address(&tData, a, size);
-    return 0;
-}
-
-/* --------------------------------------------------------------------------*/
-static int lua_remove_address(lua_State *lua) {
-    Addr a = (Addr) lua_tonumber(lua, -2);
-    SizeT size = (SizeT) lua_tonumber(lua, -1);
-    fi_remove_address(&tData, a, size);
-    return 0;
-}
-
-/* Registers FITIn own's Lua methods to context `td'. */
-/* --------------------------------------------------------------------------*/
-static void register_lua_cfunctions(ToolData *td) {
-    /* Optional persistance of flip. */
-    lua_pushcfunction(td->lua, lua_persist_flip);
-    lua_setglobal(tData.lua, "persist_flip");
-
-    /* Manual flip on arbitrary memory address. */
-    lua_pushcfunction(td->lua, lua_flip_on_memory);
-    lua_setglobal(tData.lua, "flip_on_memory");
-
-    /* Programmatic addition of monitorable addresses. */
-    lua_pushcfunction(td->lua, lua_add_address);
-    lua_setglobal(tData.lua, "add_address");
-
-    /* Inactivation of monitorable addresses. */
-    lua_pushcfunction(td->lua, lua_remove_address);
-    lua_setglobal(tData.lua, "remove_address");
-
-}
-
-/* --------------------------------------------------------------------------*/
 static void init_lua(void) {
-    const luaL_Reg *lib = NULL;
     tData.lua = luaL_newstate();
-
-    /* Happenes on latest FreeBSD, not solved yet. */
-    if(tData.lua == NULL) {
-        VG_(printf)("Failed to initialize Lua!\n");
-        VG_(exit)(1);
-    }
-
+    const luaL_Reg *lib = NULL;
     for (lib = fitin_lualibs; lib->func; lib++) {
         luaL_requiref(tData.lua, lib->name, lib->func, 1);
         lua_pop(tData.lua, 1); 
     }
-
-    register_lua_cfunctions(&tData);
+    
+    /* Register `lua_persist_flip` to be callable. */
+    lua_pushcfunction(tData.lua, lua_persist_flip);
+    lua_setglobal(tData.lua, "persist_flip");
 
     /* Attempt to open control-script file. */
     if(luaL_dofile(tData.lua, tData.lua_script) > 0) {
@@ -342,38 +377,24 @@ static void init_lua(void) {
         lua_remove(tData.lua, -1);
     }
 }
+#endif
 
 /* --------------------------------------------------------------------------*/
 static void fi_post_clo_init(void) {
+#ifdef FITIN_WITH_LUA
     if(tData.lua_script != NULL) {
         init_lua();
         
-        if(tData.available_callbacks & CALLBACK_START) {
+        if(tData.available_callbacks & 1) {
             lua_getglobal(tData.lua, "before_start");
-            if(!lua_pcall(tData.lua, 0, 1, 0) == 0) {
+            if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
                 VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
             }
-            if(lua_isnumber(tData.lua, -1)) {
-                ULong mode = lua_tonumber(tData.lua, -1);
-
-                /* Check for reading debug symbols. */
-                if(mode & 1) {
-                    tData.with_debug_symbols = True;
-                }
-            }
-            lua_pop(tData.lua, 1);
-        }
-
-        if(VG_(clo_verbosity) > 1) {
-            tData.with_debug_symbols = True;
-        }
-
-        if(tData.with_debug_symbols) {
-            VG_(needs_var_info)();
         }
     } else {
         exit_for_invalid_lua();
     }
+#endif
 }
 
 /**
@@ -386,7 +407,7 @@ static void fi_post_clo_init(void) {
  *  tracing.
  */
 /* --------------------------------------------------------------------------*/
-static Word VEX_REGPARM(3) preLoadHelper(ToolData *td, 
+static Word VEX_REGPARM(3) preLoadHelper(toolData *td, 
                                          Addr dataAddr,
                                          IRType ty) {
     LoadState state = (LoadState) { False, dataAddr, 0, 0, NULL, 0 };
@@ -400,36 +421,47 @@ static Word VEX_REGPARM(3) preLoadHelper(ToolData *td,
 
     /* Discard-note if no longer supposed to run. */
     if(!td->runtime_active) {
+      state.full_size = size;
+      state.relevant = False;
+
+      VG_(addToXA)(td->load_states, &state);
+
+      return state_list_size;
+    }
+
+    // iterate over monitorables list
+#ifndef FITIN_WITH_LUA
+    if(td->ignore_monitorables) {
+        state.relevant = True;
         state.full_size = size;
-        state.relevant = False;
+    } else {
+#endif
+        key.monAddr = dataAddr;
+        if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
+            Monitorable *mon = (Monitorable *)VG_(indexXA)(td->monitorables, first);
 
-        VG_(addToXA)(td->load_states, &state);
-
-        return state_list_size;
-    }
-
-    key.monAddr = dataAddr;
-    if(VG_(lookupXA)(td->monitorables, &key, &first, &last)) {
-        Monitorable *mon = (Monitorable*) VG_(indexXA)(td->monitorables, first);
-
-        if(mon->monValid) {
-            state.relevant = True;
-            state.full_size = mon->monSize;
+            if(mon->monValid) {
+                state.relevant = True;
+                state.full_size = mon->monSize;
+            }
         }
+#ifndef FITIN_WITH_LUA
     }
+#endif
 
-    if(td->available_callbacks & CALLBACK_ADDRESS) {
+#ifdef FITIN_WITH_LUA
+    if(td->available_callbacks & 16) {
         lua_getglobal(td->lua, "monitor_address");
         lua_pushinteger(td->lua, dataAddr);
         lua_pushboolean(td->lua, state.relevant);
-        lua_pushinteger(td->lua, state.size);
-        if(lua_pcall(td->lua, 3, 1, 0) == 0) {
+        if(lua_pcall(td->lua, 2, 1, 0) == 0) {
             state.relevant = lua_toboolean(td->lua, -1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(td->lua, -1));
         }
         lua_pop(td->lua, 1);
     }
+#endif
 
     VG_(addToXA)(td->load_states, &state);
 
@@ -444,7 +476,7 @@ static Word VEX_REGPARM(3) preLoadHelper(ToolData *td,
  * where relevancy and address can be found.
  */
 /* --------------------------------------------------------------------------*/
-static LoadData* instrument_load(ToolData *td, IRExpr *expr, IRSB *sbOut) {
+static LoadData* instrument_load(toolData *td, IRExpr *expr, IRSB *sbOut) {
     if (expr->tag == Iex_Load) {
         IRDirty *di;
         IRExpr **args;
@@ -474,7 +506,7 @@ static LoadData* instrument_load(ToolData *td, IRExpr *expr, IRSB *sbOut) {
     return NULL;
 }
 
-/* Allocates shadow register fields, with `size' being the guest state size. */
+/* Allocates shadow register fields, with `size` being the guest state size. */
 /* --------------------------------------------------------------------------*/
 static inline void initialize_register_lists(Int size) {
     tData.reg_origins = VG_(malloc)("fi.init.reg_origins", sizeof(Addr) * size);
@@ -488,233 +520,6 @@ static inline void initialize_register_lists(Int size) {
     tData.reg_load_sizes =
         VG_(malloc)("fi.init.reg_load_sizes", sizeof(SizeT) * size * 2);
     VG_(memset)(tData.reg_load_sizes, 0, sizeof(SizeT) * size * 2);
-}
-
-#define ACCESSES(expr) accesses_temp((expr), tmp, queue, i, depth, is_WrTmp)
-
-/* --------------------------------------------------------------------------*/
-static inline Bool accesses_temp(IRExpr *expr,
-                                 IRTemp tmp,
-                                 XArray *queue,
-                                 UInt i,
-                                 UInt *depth,
-                                 Bool is_WrTmp) {
-    *depth = *depth + 1;
-
-    switch(expr->tag) {
-        case Iex_GetI:
-            return ACCESSES(expr->Iex.GetI.ix);
-        case Iex_RdTmp:
-            return expr->Iex.RdTmp.tmp == tmp;
-        case Iex_Qop:
-            return ACCESSES(expr->Iex.Qop.details->arg1) ||
-                  ACCESSES(expr->Iex.Qop.details->arg2) ||
-                  ACCESSES(expr->Iex.Qop.details->arg3) ||
-                  ACCESSES(expr->Iex.Qop.details->arg4);
-        case Iex_Triop:
-            return ACCESSES(expr->Iex.Triop.details->arg1) ||
-                  ACCESSES(expr->Iex.Triop.details->arg2) ||
-                  ACCESSES(expr->Iex.Triop.details->arg3);
-        case Iex_Binop:
-            return ACCESSES(expr->Iex.Binop.arg1) ||
-                  ACCESSES(expr->Iex.Binop.arg2);
-        case Iex_Unop:
-            return ACCESSES(expr->Iex.Unop.arg);
-        case Iex_ITE:
-            return ACCESSES(expr->Iex.ITE.cond) ||
-                  ACCESSES(expr->Iex.ITE.iftrue) ||
-                  ACCESSES(expr->Iex.ITE.iffalse);
-        case Iex_CCall: {
-            Bool any = False;
-            IRExpr **expr_ptr = expr->Iex.CCall.args;
-            while(*expr_ptr != NULL && !any) {
-                any = ACCESSES(*expr_ptr);
-                expr_ptr++;
-            }
-            return any;
-        }
-        default:
-            return False;
-    }
-}
-
-/* --------------------------------------------------------------------------*/
-static inline Bool is_cast_unop(IROp op) {
-    return (op >= Iop_DivModU64to32 && op <= Iop_1Sto64) ||
-           (op >= Iop_F64toI16S && op <= Iop_F64toF32) ||
-           (op >= Iop_F64HLtoF128 && op <= Iop_F128LOtoF64) ||
-           (op >= Iop_I32StoF128 && op <= Iop_F128toF32) ||
-           (op >= Iop_QNarrowBin16Sto8Ux8 && op <= Iop_NarrowBin32to16x4) ||
-           (op >= Iop_D32toD64 && op <= Iop_D128toF128) ||
-           (op >= Iop_D64HLtoD128 && op <= Iop_D128LOtoD64) ||
-           (op >= Iop_I32UtoFx4 && op <= Iop_QFtoI32Sx4_RZ) ||
-           (op >= Iop_F32toF16x4 && op <= Iop_F16toF32x4) ||
-           (op >= Iop_V128to64 && op <= Iop_V128to32) ||
-           (op >= Iop_QNarrowBin16Sto8Ux16 && op <= Iop_Widen32Sto64x2) ||
-           (op >= Iop_V256to64_0 && op <= Iop_V128HLtoV256);
-}
-
-/* --------------------------------------------------------------------------*/
-static inline Bool found_temp_use(XArray *queue,
-                                  QueuedLoad *tuple,
-                                  IRSB *sb,
-                                  IRTemp *pre_reg_markers,
-                                  IRTemp original_tmp) {
-    UInt i = tuple->i, d = 0;
-    UInt *depth = &d;
-    Bool found = False;
-    IRTemp tmp = tuple->t;
-
-    for(; i < sb->stmts_used && !found; ++i) {
-        IRStmt *st = sb->stmts[i];
-        Bool is_WrTmp = False;
-        d = 0;
-
-        switch(st->tag) {
-            case Ist_WrTmp: {
-                IRExpr *expr = st->Ist.WrTmp.data;
-                if(expr->tag == Iex_Get) {
-                    if(pre_reg_markers[expr->Iex.Get.offset*2] != IRTemp_INVALID) {
-                        QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
-                        VG_(addToXA)(queue, &q);
-                    }
-                } else {
-                    is_WrTmp = True;
-                    found = ACCESSES(st->Ist.WrTmp.data);
-                    if(found) {
-
-                        if(d == 1) {
-                            /* Alias. */
-                            QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
-                            VG_(addToXA)(queue, &q);
-                            found = False;
-                        } else {
-                            if(expr->tag == Iex_Unop && is_cast_unop(expr->Iex.Unop.op)) {
-                                QueuedLoad q = (QueuedLoad) { st->Ist.WrTmp.tmp, i + 1 };
-                                VG_(addToXA)(queue, &q);
-                                found = False;
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-            case Ist_Store:
-                /* Data here as well, at runtime we will check the destination. */
-                found = ACCESSES(st->Ist.Store.addr) || ACCESSES(st->Ist.Store.data);
-                break;
-            case Ist_Dirty: {
-                found = ACCESSES(st->Ist.Dirty.details->guard);
-                 IRExpr **arg_ptr = st->Ist.Dirty.details->args;
-                while(*arg_ptr != NULL && !found) {
-                    found = ACCESSES(*arg_ptr);
-                    arg_ptr++;
-                }
-                if(!found && st->Ist.Dirty.details->mFx != Ifx_None) {
-                    found = ACCESSES(st->Ist.Dirty.details->mAddr);
-                }
-                break;
-            }
-            case Ist_Put: {
-                Bool local_found = ACCESSES(st->Ist.Put.data);
-                IRExpr *expr = st->Ist.Put.data;
-                if(local_found && d == 1) {
-                    SizeT size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
-                    UInt j = 0;
-                    for(; j < size; ++j) {
-                        pre_reg_markers[(st->Ist.Put.offset + j) * 2] = expr->Iex.RdTmp.tmp;
-                        pre_reg_markers[(st->Ist.Put.offset + j) * 2 + 1] = original_tmp;
-                    }
-                } else {
-                    SizeT size = 0;
-                    if(expr->tag == Iex_Const) {
-                        IRType ty = typeOfIRConst(expr->Iex.Const.con);
-                        size = sizeofIRType(ty);
-                    } else if(expr->tag == Iex_RdTmp && d == 1) {
-                        size = sizeofIRType(typeOfIRTemp(sb->tyenv, expr->Iex.RdTmp.tmp));
-                    } else {
-                        tl_assert(0);
-                    }
-                    VG_(memset)(pre_reg_markers + st->Ist.Put.offset * 2, IRTemp_INVALID, size * sizeof(IRTemp));
-                } 
-
-                break;
-            }
-            case Ist_PutI:
-                found = ACCESSES(st->Ist.PutI.details->ix) ||
-                   ACCESSES(st->Ist.PutI.details->data);
-                break;
-            case Ist_CAS:
-                found = ACCESSES(st->Ist.CAS.details->addr) ||
-                    ACCESSES(st->Ist.CAS.details->expdLo) ||
-                    ACCESSES(st->Ist.CAS.details->dataLo);
-                if(!found && st->Ist.CAS.details->expdHi != NULL) {
-                    found = ACCESSES(st->Ist.CAS.details->expdHi);
-                }
-                if(!found && st->Ist.CAS.details->dataHi != NULL) {
-                    found = ACCESSES(st->Ist.CAS.details->dataHi);
-                }
-                break;
-            case Ist_LLSC:
-                found = ACCESSES(st->Ist.LLSC.addr);
-
-                if(!found && st->Ist.LLSC.storedata != NULL) {
-                    found = ACCESSES(st->Ist.LLSC.storedata);
-                }
-                break;
-            case Ist_Exit:
-                found = ACCESSES(st->Ist.Exit.guard);
-                break;
-            default:
-                break;
-       }
-    }
-    return found;
-}
-
-/* --------------------------------------------------------------------------*/
-static inline Bool observed_load_use(IRTemp tmp,
-                                     IRSB *sbIn,
-                                     UInt i,
-                                     IRTemp **pre_reg_markers,
-                                     SizeT pre_reg_table_size) {
-    IRStmt *st = sbIn->stmts[i];
-    IRExpr *expr = st->Ist.WrTmp.data;
-
-    if(expr->tag == Iex_Load) {
-        XArray *queue = VG_(newXA)(VG_(malloc),
-                                   "fi.intrumentation.load_check",
-                                   VG_(free),
-                                   sizeof(QueuedLoad));
-        QueuedLoad tuple = (QueuedLoad) { tmp, i };
-        VG_(addToXA)(queue, &tuple);
-
-        IRTemp *copy = VG_(malloc)("fi.instrumentation.copy", pre_reg_table_size);
-        VG_(memcpy)(copy, *pre_reg_markers, pre_reg_table_size);
-
-        Word j = 0;
-        Bool found = False;
-        /* Always check size as this might grow. */
-        for(; j < VG_(sizeXA)(queue) && !found; ++j) {
-            QueuedLoad *q = VG_(indexXA)(queue, j);
-            found = found_temp_use(queue, q, sbIn, *pre_reg_markers, tmp);
-        }
-
-        /* Restore old table, the new one might contain remainders that we
-        * don't want to cover right now: If a branched value of this one goes 
-        * into a PUT, live with it. For now, look at the edge case of
-        * Load -> Put -> Syscall */
-        if(found) {
-            VG_(free)(*pre_reg_markers);
-            *pre_reg_markers = copy;
-        }
-
-        VG_(deleteXA)(queue);
-
-        return found;
-    }
-
-    return False;
 }
 
 #define INSTRUMENT_ACCESS(expr) fi_reg_instrument_access(&tData, \
@@ -742,9 +547,9 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     IRStmt    *st;
     IRExpr **argv;
     IRDirty *di;
-    UInt i;
+    int i;
     XArray *loads = NULL, *replacements = NULL;
-    Bool monitor_sb = False, monitoring_checked = False;
+    Bool monitor_sb = False;
 
     if(!tData.runtime_active) {
         return sbIn;
@@ -779,10 +584,6 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
     VG_(setCmpFnXA)(replacements, fi_reg_compare_replacements);
     VG_(sortXA)(replacements);
 
-    SizeT pre_reg_table_size = sizeof(IRTemp) * layout->total_sizeB * 2;
-    IRTemp *pre_reg_markers = VG_(malloc)("fi.instrumentation.reg_helper", pre_reg_table_size);
-    VG_(memset)(pre_reg_markers, IRTemp_INVALID, pre_reg_table_size);
-
     /* Set up SB-out, copy of SB-in. */
     sbOut = deepCopyIRSBExceptStmts(sbIn);
     i = 0;
@@ -799,9 +600,8 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         }
 
         if(st->tag == Ist_IMark) {
-            if(!monitoring_checked) {
+            if(i == 0) {
                 monitor_sb = monitorInst(st->Ist.IMark.addr);
-                monitoring_checked = True;
             }
 
             /* Add the counter to every single IMark, no matter where. */
@@ -814,21 +614,14 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
         if(monitor_sb) {
             switch (st->tag) {
                 case Ist_Put:
-                    if(!fi_reg_set_passive_occupancy(&tData,
-                                                     loads,
-                                                     pre_reg_markers,
-                                                     st->Ist.Put.offset,
-                                                     st->Ist.Put.data,
-                                                     sbOut)) {
-                        /* PUTting something should not count as access. */
-                        JUST_REPLACE_ACCESS(st->Ist.Put.data);
+                    /* PUTting something should not count as access. */
+                    JUST_REPLACE_ACCESS(st->Ist.Put.data);
 
-                        fi_reg_set_occupancy(&tData,
-                                             loads,
-                                             st->Ist.Put.offset,
-                                             st->Ist.Put.data,
-                                             sbOut);
-                    }
+                    fi_reg_set_occupancy(&tData,
+                                         loads,
+                                         st->Ist.Put.offset,
+                                         st->Ist.Put.data,
+                                         sbOut);
                     break;
                 case Ist_PutI:
                     /* The impact of those operation to the shadow registers
@@ -837,18 +630,27 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
                     INSTRUMENT_ACCESS(st->Ist.PutI.details->data);
                     break;
                 case Ist_WrTmp: {
+                    /* IMPORTANT: please see fi_reg_add_load_on_resize.*/
+                    if(tData.gWordTy == Ity_I64 && 
+                            fi_reg_add_load_on_resize(&tData,
+                                                      loads,
+                                                      replacements,
+                                                      &(st->Ist.WrTmp.data),
+                                                      st->Ist.WrTmp.tmp,
+                                                      sbOut)) {
+                        break;
+                    }
+
                     /* This will instrument the assigned data. */
                     INSTRUMENT_ACCESS(st->Ist.WrTmp.data);
-                    Bool used = observed_load_use(st->Ist.WrTmp.tmp, sbIn, i, &pre_reg_markers, pre_reg_table_size);
                     LoadData *load_data = instrument_load(&tData, st->Ist.WrTmp.data, sbOut);
 
                     if(load_data != NULL) {
                         load_data->dest_temp = st->Ist.WrTmp.tmp;
-                        load_data->passive = !used;
                         fi_reg_add_temp_load(loads, load_data);
                         VG_(free)(load_data);
                     } else {
-                        fi_reg_add_load_on_get(&tData,
+                        fi_reg_add_load_on_get(&tData, 
                                                loads,
                                                st->Ist.WrTmp.tmp,
                                                typeOfIRTemp(sbIn->tyenv, st->Ist.WrTmp.tmp),
@@ -926,7 +728,6 @@ static IRSB *fi_instrument(VgCallbackClosure *closure,
 
     VG_(deleteXA)(replacements);
     VG_(deleteXA)(loads);
-    VG_(free)(pre_reg_markers);
 
     return sbOut;
 }
@@ -967,65 +768,20 @@ static void fi_fini(Int exitcode) {
         VG_(free)(tData.reg_load_sizes);
     }
 
-    if(tData.available_callbacks & CALLBACK_END) {
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 2) {
         lua_getglobal(tData.lua, "after_end");
         if(!lua_pcall(tData.lua, 0, 0, 0) == 0) {
             VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
         }
     }
     lua_close(tData.lua);
+#endif
 
     VG_(printf)("[FITIn] Totals (of monitored code blocks)\n");
     VG_(printf)("[FITIn]   Overall variable accesses: %lu\n", (unsigned long) tData.loads);
     VG_(printf)("[FITIn]   Monitored variable accesses: %lu\n", (unsigned long) tData.monLoadCnt);
     VG_(printf)("[FITIn]   Instructions executed: %lu\n", (unsigned long) tData.instCnt);
-}
-
-/* Adds an address `a' of `size'  to context `td'. */
-/* --------------------------------------------------------------------------*/
-static void fi_add_address(ToolData *td, Addr a, SizeT size) {
-    //Initialize and add monitorable to list
-    Monitorable mon;
-    mon.monAddr = a;
-    mon.monSize = size;
-    mon.monValid = True;
-
-    Word first = 0, last = 0;
-
-    if(VG_(lookupXA)(tData.monitorables, &mon, &first, &last)) {
-        Word i = first;
-        Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
-
-        /* Let's reactivate them and save some space. */
-        other_mon->monValid = True;
-
-        if(size > other_mon->monSize) {
-            other_mon->monSize = size;
-        }
-    } else {
-        VG_(addToXA)(tData.monitorables, &mon);
-        VG_(sortXA)(tData.monitorables);
-    }
-}
-
-/* Removes a given address `a', last registered on `size' from context `td' of
- * active addresses. */
-/* --------------------------------------------------------------------------*/
-static void fi_remove_address(ToolData *td, Addr a, SizeT size) {
-    Word mons_num = 0, i = 0;
-    XArray *mons = tData.monitorables;
-
-    mons_num = VG_(sizeXA)(mons);
-    for (i = 0; i < mons_num; i++) {
-        Monitorable *mon = VG_(indexXA)(mons, i);
-        tl_assert(mon != NULL);
-
-        if(a == mon->monAddr &&
-                size == mon->monSize &&
-                mon->monValid == True) {
-            mon->monValid = False;
-        }
-    }
 }
 
 /* --------------------------------------------------------------------------*/
@@ -1038,51 +794,60 @@ static Bool fi_handle_client_request(ThreadId tid, UWord *args, UWord *ret) {
     switch(args[0]) {
         case VG_USERREQ__MON_VAR:
         case VG_USERREQ__MON_MEM: {
-            fi_add_address(&tData, args[1], args[2]);
+            //Initialize and add monitorable to list
+            Monitorable mon;
+            mon.monAddr = args[1];
+            mon.monSize = args[2];
+            mon.monLen  = 1; // Length is constant 1 because it's no array
+            mon.monLoads = 0;
+            mon.monWrites = 0;
+            mon.monValid = True;
+            mon.modBit = tData.modBit;
+            mon.modIteration = tData.modMemLoadTime;
+            mon.monLstWriteIsn = 0;
+
+            Word first = 0, last = 0;
+
+            if(VG_(lookupXA)(tData.monitorables, &mon, &first, &last)) {
+                Word i = first;
+                Monitorable *other_mon = (Monitorable*) VG_(indexXA)(tData.monitorables, i);
+                
+                /* Let's reactivate them and save some space. */
+                other_mon->monValid = True;
+
+                if(args[2] > other_mon->monSize) {
+                    other_mon->monSize = args[2];
+                }
+            } else {
+                VG_(addToXA)(tData.monitorables, &mon);
+                VG_(sortXA)(tData.monitorables);
+            }
+
             break;
         }
         case VG_USERREQ__UMON_VAR:
         case VG_USERREQ__UMON_MEM: {
-            fi_remove_address(&tData, args[1], args[2]);
-            break;
-        }
-        case VG_USERREQ__MON_FIELD: {
-            if(tData.available_callbacks & CALLBACK_FIELD) {
-                SizeT *field = (SizeT*) args[3];
-                Long i = 0;
+            Word size = 0, i = 0;
+            XArray *mons = tData.monitorables;
 
-                lua_getglobal(tData.lua, "monitor_field");
-                lua_pushinteger(tData.lua, args[1]);
-                lua_pushinteger(tData.lua, args[2]);
+            size = VG_(sizeXA)(mons);
+            for (i = 0; i < size; i++) {
+                Monitorable *mon = VG_(indexXA)(mons, i);
+                tl_assert(mon != NULL);
 
-                lua_newtable(tData.lua);
-                for(; i < args[4]; ++i) {
-                    lua_pushinteger(tData.lua, i);
-                    lua_pushinteger(tData.lua, field[i]);
-                    lua_rawset(tData.lua, -3);
-                }
-
-                if(!lua_pcall(tData.lua, 3, 0, 0) == 0) {
-                    VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
+                if( args[1] == mon->monAddr &&
+                        args[2] == mon->monSize &&
+                        mon->monValid == True) {
+                    mon->monValid = False;
                 }
             }
             break;
         }
-        case VG_USERREQ__BP: {
-            if(tData.available_callbacks & CALLBACK_BP) {
-                lua_getglobal(tData.lua, "breakpoint");
-                lua_pushinteger(tData.lua, args[1]);
-                lua_pushinteger(tData.lua, args[2]);
-                lua_pushinteger(tData.lua, args[3]);
-                lua_pushinteger(tData.lua, args[4]);
-                lua_pushinteger(tData.lua, args[5]);
-
-                if(!lua_pcall(tData.lua, 5, 0, 0) == 0) {
-                    VG_(printf)("LUA: %s\n", lua_tostring(tData.lua, -1));
-                }
-            }
-            break;
-        }
+        case VG_USERREQ__MON_ARR:
+        case VG_USERREQ__UMON_ARR:
+        case VG_USERREQ__INJ_B_VAR:
+        case VG_USERREQ__INJ_B_MEM:
+        case VG_USERREQ__CINJ_B_VAR:
         default:
             return False;
     }
@@ -1108,7 +873,8 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
                                    VG_(free),
                                    sizeof(LoadState));
 
-    if(tData.available_callbacks & CALLBACK_NEXT_SB) {
+#ifdef FITIN_WITH_LUA
+    if(tData.available_callbacks & 4) {
         lua_getglobal(tData.lua, "next_block");
         lua_pushinteger(tData.lua, tData.instCnt);
         if(lua_pcall(tData.lua, 1, 1, 0) == 0) {
@@ -1125,17 +891,32 @@ static void fi_reg_on_client_code_stop(ThreadId tid, ULong dispatched_blocks) {
         }
         lua_pop(tData.lua, 1);
     }
+#endif
 }
 
-/* This method will check for every `size' bytes, beginning at `a' whether there
+/* This method will check for every `size` bytes, beginning at `a` whether there
    exists a monitorable. Otherwise, we can't handle bytes that are located away
-   from `a', such as arrays or strings. */
+   from `a`, such as arrays or strings. */
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
                                Addr a, SizeT size) {
 
     if(tData.runtime_active && part == Vg_CoreSysCall) {
-        fi_reg_flip_or_leave_mem(&tData, a, size);
+        Word first, last;
+        Int mem_offset = 0;
+
+        for(; mem_offset <= size; ++mem_offset) {
+            Monitorable key;
+            key.monAddr = a + mem_offset;
+
+            if(VG_(lookupXA)(tData.monitorables, &key, &first, &last)) {
+                Monitorable *mon = (Monitorable*) VG_(indexXA)(tData.monitorables, first);
+
+                if(mon->monValid) {
+                    fi_reg_flip_or_leave_mem(&tData, a, mon->monSize);
+                }
+            }
+        }
     }
 }
 
@@ -1143,11 +924,8 @@ static void fi_reg_on_mem_read(CorePart part, ThreadId tid, const HChar *s,
 /* --------------------------------------------------------------------------*/
 static void fi_reg_on_mem_read_str(CorePart part, ThreadId tid, const HChar *s,
                                    Addr a) {
-    /* Sometimes, when running MPI programs, this turns out to be NULL. */
-    if((void*)a != NULL) {
-        SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
-        fi_reg_on_mem_read(part, tid, s, a, strlen);
-    }
+    SizeT strlen = VG_(strlen)((const HChar*) a) + 1;
+    fi_reg_on_mem_read(part, tid, s, a, strlen);
 }
 
 /* Callback for register syscalls. */

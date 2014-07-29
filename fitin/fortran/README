@@ -38,6 +38,12 @@ USE
 
     call FITIN_UNMONITOR_VARIABLE(<variable>)
 
+3a.) On Fortran, you also have:
+
+    call FITIN_MONITOR_FIELD(<field>)
+
+    To get into the callback `monitor_field' (see sample.lua).
+
 4.) If you rely on procedure names, do not forget to enable debug symbols
     (-g on gfortran).
 

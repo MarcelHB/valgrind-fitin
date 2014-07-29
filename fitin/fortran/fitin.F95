@@ -15,5 +15,10 @@ module FITIN
       implicit none
       integer(__SIZEOF_POINTER__) :: ptr, size
     end subroutine
+
+    subroutine FITIN_BREAKPOINT5_F(a, b, c, d, e)
+      implicit none
+      integer(__SIZEOF_POINTER__) :: a, b, c, d, e
+    end subroutine
   end interface
 end module

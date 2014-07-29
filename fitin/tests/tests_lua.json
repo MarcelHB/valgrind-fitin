@@ -120,5 +120,10 @@
         "files": ["sample20.c"],
         "output": "sample20",
         "expected": "0"
+    },{
+        "title": "Allows jumping into Lua breakpoints.",
+        "files": ["sample21.c"],
+        "output": "sample21",
+        "expected": "1"
     }]
 }
