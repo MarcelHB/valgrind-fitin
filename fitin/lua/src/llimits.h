@@ -274,6 +274,10 @@ union luai_Cast { double l_d; LUA_INT32 l_p[2]; };
     (((u) <= (lua_Unsigned)INT_MAX) ? (lua_Number)(int)(u) : (lua_Number)(u))
 #endif
 
+#ifdef FITIN_WITH_LUA
+#undef lua_number2unsigned
+#define lua_number2unsigned(i,n) (i) = (lua_Unsigned)(n)
+#endif
 
 
 #if defined(ltable_c) && !defined(luai_hashnum)

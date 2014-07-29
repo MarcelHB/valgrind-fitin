@@ -421,7 +421,7 @@
 
 #define LUA_NUMBER_DOUBLE
 #ifdef FITIN_WITH_LUA
-#define LUA_NUMBER	Long
+#define LUA_NUMBER	LUA_VG_NUM
 #else
 #define LUA_NUMBER	double
 #endif
@@ -431,7 +431,7 @@
 @* over a number.
 */
 #ifdef FITIN_WITH_LUA
-#define LUAI_UACNUMBER	Long
+#define LUAI_UACNUMBER	LUA_VG_NUM
 #else
 #define LUAI_UACNUMBER	double
 #endif
@@ -503,7 +503,11 @@
 @@ LUA_UNSIGNED is the integral type used by lua_pushunsigned/lua_tounsigned.
 ** It must have at least 32 bits.
 */
+#ifdef FITIN_WITH_LUA
+#define LUA_UNSIGNED	LUA_VG_UNSIGNED
+#else
 #define LUA_UNSIGNED	unsigned LUA_INT32
+#endif
 
 
 

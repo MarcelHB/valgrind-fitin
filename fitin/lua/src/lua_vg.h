@@ -19,6 +19,9 @@
 #include "pub_tool_libcsetjmp.h"
 #include "pub_tool_mallocfree.h"
 
+#define LUA_VG_NUM      Long
+#define LUA_VG_UNSIGNED ULong
+
 /* `lua_print` wraps Lua's print messages which will only appear
  * verbose mode.
  */
@@ -107,17 +110,17 @@ extern int* __errno_location(void);
  * No replacement for trigonometric functions. Simply don't require them.
  */
 #define abs(n) ((n < 0) ? -(n) : n)
-#define floor(d) ((long long) d)
+#define floor(d) ((LUA_VG_NUM) d)
 #define ceil(d) (floor(d)+1)
-/* This function will convert the exponent to a `long`! */
-extern long vg_pow(long, long);
+/* This function will convert the exponent to a `long'! */
+extern Long vg_pow(LUA_VG_NUM, LUA_VG_NUM);
 #define pow(b,e) vg_pow(b,e)
 #define ldexp(r,e) (r * pow(2,e))
 
 /* Random functions.
  *
  * Be careful: So far, we don't have reliable noise sources as time()
- * calls may result in similar values when calling `srand`.
+ * calls may result in similar values when calling `srand'.
  */
 extern int vg_rand(void);
 #define rand() vg_rand()

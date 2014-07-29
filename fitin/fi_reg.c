@@ -421,7 +421,7 @@ static void* VEX_REGPARM(2) fi_reg_flip_or_leave_ext(ToolData *tool_data,
     if(tool_data->runtime_active) {
         if(state->data == NULL) {
             state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
-            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
+            VG_(memcpy)(state->data, (void*) state->location, state->original_size);
         }
 
         flip_or_leave(tool_data, state->data, state);
@@ -474,7 +474,7 @@ static void* VEX_REGPARM(3) fi_reg_flip_or_leave_before_store_ext(ToolData *tool
     if(tool_data->runtime_active && state->location != location) {
         if(state->data == NULL) {
             state->data = (void*) VG_(calloc)("fi.reg.external_copy", state->size, 1);
-            VG_(memcpy)(state->data,(void*) state->location, state->original_size);
+            VG_(memcpy)(state->data, (void*) state->location, state->original_size);
         }
 
         flip_or_leave(tool_data, state->data, state);
@@ -515,7 +515,7 @@ static inline ULong* get_lua_table(lua_State *lua, SizeT *size) {
 
         for(; lua_next(lua, -2); ++i) {
             tl_assert(lua_isnumber(lua, -1));
-            table[i] = lua_tointeger(lua, -1);
+            table[i] = lua_tounsigned(lua, -1);
             lua_pop(lua, 1);
         }
 
@@ -771,7 +771,6 @@ static inline void flip_bits(void *data,
     SizeT min_size = size <= table_size ? size : table_size;
     Int longs = min_size / sizeof(ULong), i = longs - 1;
 
-    /* Flip everything that can be aligned into a whole register. */
     for(; i >= 0; --i) {
         flip_long_bits(((ULong*)data) + i, bit_table[i]);
     }

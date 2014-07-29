@@ -187,8 +187,8 @@ extern time_t vg_mktime(struct tm *t) {
 }
 
 /* --------------------------------------------------------------------------*/
-extern long vg_pow(long b, long e) {
-    long i = 1, result = b;
+extern Long vg_pow(LUA_VG_NUM b, LUA_VG_NUM e) {
+    LUA_VG_NUM i = 1, result = b;
 
     /* Some faster lookups. */
     if(e == 1) {
@@ -196,7 +196,7 @@ extern long vg_pow(long b, long e) {
     } else if(e == 0) {
         return 1;
     } else if(b == 2 && e > 0) {
-        return 1 << e;
+        return ((LUA_VG_NUM)1) << e;
     } else if(e > 0) {
         for(; i <= e; ++i) {
             result *= b;
