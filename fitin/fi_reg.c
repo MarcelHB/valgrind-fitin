@@ -442,9 +442,15 @@ static UWord VEX_REGPARM(3) fi_reg_flip_or_leave_before_store(ToolData *tool_dat
                                                               UWord data,
                                                               Addr address,
                                                               Word state_list_index) {
-    tool_data->loads++;
 
     LoadState *state = (LoadState*) VG_(indexXA)(tool_data->load_states, state_list_index);
+
+    /* Just count those accesses that do not write back a value to its origin.
+       Otherwise, this may result in total > monitored even on 100% effective access
+       coverage. */
+    if(state->location != address) {
+        tool_data->loads++;
+    }
 
     if(tool_data->runtime_active) {
         if(state->location != address) {
