@@ -287,6 +287,7 @@ static int lua_remove_address(lua_State *lua) {
     return 0;
 }
 
+
 /* Registers FITIn own's Lua methods to context `td'. */
 /* --------------------------------------------------------------------------*/
 static void register_lua_cfunctions(ToolData *td) {
@@ -306,6 +307,9 @@ static void register_lua_cfunctions(ToolData *td) {
     lua_pushcfunction(td->lua, lua_remove_address);
     lua_setglobal(tData.lua, "remove_address");
 
+    /* Function to retrieve the debug string. */
+    lua_pushcfunction(td->lua, lua_get_debug_description);
+    lua_setglobal(tData.lua, "get_debug_description");
 }
 
 /* --------------------------------------------------------------------------*/
@@ -362,10 +366,6 @@ static void fi_post_clo_init(void) {
                 }
             }
             lua_pop(tData.lua, 1);
-        }
-
-        if(VG_(clo_verbosity) > 1) {
-            tData.with_debug_symbols = True;
         }
 
         if(tData.with_debug_symbols) {

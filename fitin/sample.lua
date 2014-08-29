@@ -88,10 +88,6 @@ end
 --   * address:integer: The address of the value to flip.
 --   * counter:integer: A global counter value for every call on `flip_value'.
 --   * size:integer: The size of this value in byte.
---   * desc:string: A Valgrind-formatted string describing the target by
---     information taken from the debug symbols. You need to run
---     `--verbose' or enable debug symbols by `before_start' to get this
---     string. If not, this is nil. Otherwise it can be nil as well.
 --
 --  Expected return: array. You can use `{}' as an empty array to state
 --  "don't touch", e.g. for doing dry-runs. Otherwise, each element of
@@ -110,6 +106,7 @@ end
 --  reload. To prevent this, you can call `persist_flip' from this
 --  function.
 --
+--
 --  persist_flip
 --
 --    * state: Please use the `state' variable from the same scope.
@@ -121,7 +118,16 @@ end
 --  register-ready value, `persist_flip' will write on later bytes in
 --  memory if the registered value is larger. Think of a C-struct.
 --
-flip_value = function(state, address, counter, size, desc)
+--
+--  get_debug_description
+--
+--    * state: Please use the `state' variable from the same scope.
+--
+--  Return: A string containing a Valgrind-assembled debug description
+--  of the flip target if `before_start' returned 1 on the first bit. 
+--  Otherwise, this string is empty.
+
+flip_value = function(state, address, counter, size)
   -- on the third global access to selected variables
   if counter == 3 then
     -- bit-flip pattern (LSB->MSB): 000001000...

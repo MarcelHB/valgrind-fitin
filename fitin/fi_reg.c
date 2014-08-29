@@ -96,6 +96,8 @@ static IRTemp instrument_access_tmp(ToolData *tool_data,
 
 static IRTemp insert_64bit_resizer(IRTemp src_tmp, IRSB *sb);
 
+static HChar* get_debug_sym_description(ToolData*, Addr);
+
 /* See fi_reg.h */
 /* --------------------------------------------------------------------------*/
 inline void fi_reg_add_temp_load(XArray *list, LoadData *data) {
@@ -570,6 +572,26 @@ int lua_persist_flip(lua_State *lua) {
 }
 
 /* --------------------------------------------------------------------------*/
+int lua_get_debug_description(lua_State *lua) {
+    LuaFlipPassData *data = (LuaFlipPassData*) lua_touserdata(lua, -1);
+
+    if(data != NULL) {
+        ToolData *td = data->td;
+
+        if(td->with_debug_symbols) {
+            HChar *descr = get_debug_sym_description(td, data->addr);
+            lua_pushstring(lua, descr);
+            VG_(free)(descr);
+
+            return 1;
+        }
+    }
+
+    lua_pushstring(lua, "");
+    return 1;
+}
+
+/* --------------------------------------------------------------------------*/
 int lua_flip_on_memory(lua_State *lua) {
     if(lua_istable(lua, -1)) {
         SizeT table_size = 0;
@@ -624,29 +646,18 @@ static inline void flip_or_leave(ToolData *tool_data,
         tool_data->monLoadCnt++;
 
         if(tool_data->available_callbacks & CALLBACK_FLIP) {
-            HChar *description = get_debug_sym_description(tool_data, state->location);
-
-            LuaFlipPassData lua_data = { tool_data, state, NORMAL };
+            LuaFlipPassData lua_data = { tool_data, state, NORMAL, 0, state->location };
             lua_getglobal(tool_data->lua, "flip_value");
             lua_pushlightuserdata(tool_data->lua, &lua_data);
             lua_pushinteger(tool_data->lua, state->location);
             lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
             lua_pushinteger(tool_data->lua, (ULong) state->original_size);
-            lua_pushstring(tool_data->lua, description);
 
-            if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
+            if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
                 SizeT size = 0;
                 ULong *table = get_lua_table(tool_data->lua, &size); 
 
                 if(size > 0) {
-                    if(VG_(clo_verbosity) > 1) {
-                        if(description != NULL) {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", (void*) state->location, description);
-                        } else {
-                            VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) state->location);
-                        }
-                    }
-
                     flip_bits(data, state->size, table, size);
                     VG_(free)(table);
                 }
@@ -654,10 +665,6 @@ static inline void flip_or_leave(ToolData *tool_data,
                 lua_pop(tool_data->lua, 1);
             } else {
                 VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
-            }
-
-            if(description != NULL) {
-                VG_(free)(description);
             }
         }
     }
@@ -669,27 +676,18 @@ static inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
     tool_data->monLoadCnt++;
 
     if(tool_data->available_callbacks & CALLBACK_FLIP) {
-        HChar *description = get_debug_sym_description(tool_data, a);
-
-        LuaFlipPassData lua_data = { NULL, NULL, MEMORY };
+        LuaFlipPassData lua_data = { NULL, NULL, MEMORY, 0, a };
         lua_getglobal(tool_data->lua, "flip_value");
         lua_pushlightuserdata(tool_data->lua, &lua_data);
         lua_pushinteger(tool_data->lua, (ULong) a);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
         lua_pushinteger(tool_data->lua, (ULong) size);
-        lua_pushstring(tool_data->lua, description);
 
-        if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
+        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
             if(table_size > 0) {
-                if(VG_(clo_verbosity) > 1) {
-                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", (void*) a, description);
-                } else {
-                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", (void*) a);
-                }
-
                 flip_bits((void*) a, size, table, table_size);
                 VG_(free)(table);
             }
@@ -697,10 +695,6 @@ static inline void flip_or_leave_mem(ToolData *tool_data, Addr a, SizeT size) {
             lua_pop(tool_data->lua, 1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
-        }
-
-        if(description != NULL) {
-            VG_(free)(description);
         }
     }
 }
@@ -1409,27 +1403,18 @@ static inline void flip_or_leave_on_buffer(ToolData *tool_data,
     void *origin = (void*) tool_data->reg_origins[offset];
 
     if(tool_data->available_callbacks & CALLBACK_FLIP) {
-        HChar *description = get_debug_sym_description(tool_data, (Addr) origin);
-
-        LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset };
+        LuaFlipPassData lua_data = { tool_data, NULL, REG_TABLE, offset, (Addr) origin };
         lua_getglobal(tool_data->lua, "flip_value");
         lua_pushlightuserdata(tool_data->lua, &lua_data);
         lua_pushinteger(tool_data->lua, (ULong) origin);
         lua_pushinteger(tool_data->lua, tool_data->monLoadCnt);
         lua_pushinteger(tool_data->lua, (ULong) size);
-        lua_pushstring(tool_data->lua, description);
 
-        if(lua_pcall(tool_data->lua, 5, 1, 0) == 0) {
+        if(lua_pcall(tool_data->lua, 4, 1, 0) == 0) {
             SizeT table_size = 0;
             ULong *table = get_lua_table(tool_data->lua, &table_size); 
 
             if(table_size > 0) {
-                if(VG_(clo_verbosity) > 1) {
-                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: %s\n", origin, description);
-                } else {
-                    VG_(printf)("[FITIn] FLIP(S)! Data from %p; description: n/a\n", origin);
-                }
-
                 flip_bits(buffer, size, table, table_size);
                 VG_(free)(table);
             }
@@ -1437,10 +1422,6 @@ static inline void flip_or_leave_on_buffer(ToolData *tool_data,
             lua_pop(tool_data->lua, 1);
         } else {
             VG_(printf)("LUA: %s\n", lua_tostring(tool_data->lua, -1));
-        }
-
-        if(description != NULL) {
-            VG_(free)(description);
         }
     }
 }

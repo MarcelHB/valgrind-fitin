@@ -89,6 +89,7 @@ typedef struct {
     LoadState *state;
     enum { MEMORY, REG_TABLE, NORMAL } type;
     UInt offset;
+    Addr addr;
 } LuaFlipPassData;
 
 /* Helper function to properly add a LoadData into the appropriate list. */
@@ -187,5 +188,9 @@ int lua_persist_flip(lua_State *lua);
    address, pattern, size to manually trigger bit flips outside of given
    addresses. */
 int lua_flip_on_memory(lua_State *lua);
+
+/* To be called from within `flip_value'. Requires the first bit of the start
+   flags to be set. */
+int lua_get_debug_description(lua_State *lua);
 
 #endif
