@@ -44,7 +44,7 @@
 #include "pub_tool_libcassert.h"  // tl_assert()
 #include "pub_tool_libcbase.h"    // VG_(strcmp)
 #include "pub_tool_libcprint.h"   // VG_(printf)
-#include "pub_tool_libcproc.h"
+#include "pub_tool_libcproc.h"    // VG_(getenv)()
 #include "pub_tool_machine.h"
 #include "pub_tool_mallocfree.h"  // VG_(malloc)(), VG_(free)()
 #include "pub_tool_options.h"     // command line options
@@ -121,6 +121,8 @@ static Bool DRD_(process_cmd_line_option)(const HChar* arg)
    else if VG_BOOL_CLO(arg, "--trace-semaphore",     trace_semaphore) {}
    else if VG_BOOL_CLO(arg, "--trace-suppr",         trace_suppression) {}
    else if VG_BOOL_CLO(arg, "--var-info",            s_var_info) {}
+   else if VG_BOOL_CLO(arg, "--verify-conflict-set", DRD_(verify_conflict_set))
+   {}
    else if VG_INT_CLO (arg, "--exclusive-threshold", exclusive_threshold_ms) {}
    else if VG_STR_CLO (arg, "--ptrace-addr",         ptrace_address) {}
    else if VG_INT_CLO (arg, "--shared-threshold",    shared_threshold_ms)    {}
@@ -160,8 +162,13 @@ static Bool DRD_(process_cmd_line_option)(const HChar* arg)
       DRD_(start_tracing_address_range)(addr, addr + 1, False);
    }
    if (ptrace_address) {
-      const Addr addr = VG_(strtoll16)(ptrace_address, 0);
-      DRD_(start_tracing_address_range)(addr, addr + 1, True);
+      char *plus = VG_(strchr)(ptrace_address, '+');
+      Addr addr, length;
+      if (plus)
+         *plus = '\0';
+      addr = VG_(strtoll16)(ptrace_address, 0);
+      length = plus ? VG_(strtoll16)(plus + 1, 0) : 1;
+      DRD_(start_tracing_address_range)(addr, addr + length, True);
    }
    if (trace_barrier != -1)
       DRD_(barrier_set_trace)(trace_barrier);
@@ -224,13 +231,14 @@ static void DRD_(print_usage)(void)
 "    --show-stack-usage=yes|no Print stack usage at thread exit time [no].\n"
 "\n"
 "  drd options for monitoring process behavior:\n"
-"    --ptrace-addr=<address>   Trace all load and store activity for the\n"
-"                              specified address and keep doing that even after\n"
-"                              the memory at that address has been freed and\n"
-"                              reallocated [off].\n"
+"    --ptrace-addr=<address>[+<length>] Trace all load and store activity for\n"
+"                              the specified address range and keep doing that\n"
+"                              even after the memory at that address has been\n"
+"                              freed and reallocated [off].\n"
 "    --trace-addr=<address>    Trace all load and store activity for the\n"
 "                              specified address [off].\n"
-"    --trace-alloc=yes|no      Trace all memory allocations and deallocations\n""                              [no].\n"
+"    --trace-alloc=yes|no      Trace all memory allocations and deallocations\n"
+"                              [no].\n"
 "    --trace-barrier=yes|no    Trace all barrier activity [no].\n"
 "    --trace-cond=yes|no       Trace all condition variable activity [no].\n"
 "    --trace-fork-join=yes|no  Trace all thread fork/join activity [no].\n"
@@ -256,6 +264,7 @@ static void DRD_(print_debug_usage)(void)
 "                              which data race detection is suppressed.\n"
 "    --trace-segment=yes|no    Trace segment actions [no].\n"
 "    --trace-suppr=yes|no      Trace all address suppression actions [no].\n"
+"    --verify-conflict-set=yes|no Verify conflict set consistency [no].\n"
 );
 }
 
@@ -270,6 +279,7 @@ static void drd_pre_mem_read(const CorePart part,
                              const Addr a,
                              const SizeT size)
 {
+   DRD_(thread_set_vg_running_tid)(VG_(get_running_tid)());
    if (size > 0)
    {
       DRD_(trace_load)(a, size);
@@ -873,6 +883,10 @@ void drd_pre_clo_init(void)
       if (smi)
          DRD_(thread_set_segment_merge_interval)(VG_(strtoll10)(smi, NULL));
    }
+
+   if (VG_(getenv)("DRD_VERIFY_CONFLICT_SET"))
+      DRD_(verify_conflict_set) = True;
+
 }
 
 

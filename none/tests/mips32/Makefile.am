@@ -24,14 +24,17 @@ EXTRA_DIST = \
 	SignalException.stderr.exp SignalException.vgtest \
 	bug320057-mips32.stdout.exp bug320057-mips32.stderr.exp \
 	bug320057-mips32.vgtest \
-	mips32_dsp.stdout.exp mips32_dsp.stdout.exp-BE \
-	mips32_dsp.stdout.exp-mips32 mips32_dsp.stderr.exp \
-	mips32_dsp.vgtest \
+	mips32_dsp.stdout.exp-LE mips32_dsp.stdout.exp-BE \
+	mips32_dsp.stderr.exp mips32_dsp.vgtest \
 	mips32_dspr2.stdout.exp mips32_dspr2.stderr.exp \
-	mips32_dspr2.stdout.exp-mips32 mips32_dspr2.vgtest \
+	mips32_dspr2.vgtest \
 	unaligned_load_store.stdout.exp-LE unaligned_load_store.stdout.exp-BE \
 	unaligned_load_store.stderr.exp unaligned_load_store.vgtest \
-	test_fcsr.stdout.exp test_fcsr.stderr.exp test_fcsr.vgtest
+	test_fcsr.stdout.exp test_fcsr.stderr.exp test_fcsr.vgtest \
+	test_math.stdout.exp test_math.stderr.exp test_math.vgtest \
+	round_fpu64.stdout.exp round_fpu64.stdout.exp-fpu32 \
+	round_fpu64.stderr.exp round_fpu64.vgtest \
+	fpu_branches.stdout.exp fpu_branches.stderr.exp fpu_branches.vgtest
 
 check_PROGRAMS = \
 	allexec \
@@ -50,7 +53,10 @@ check_PROGRAMS = \
 	mips32_dsp \
 	mips32_dspr2 \
 	unaligned_load_store \
-	test_fcsr
+	test_fcsr \
+	test_math \
+	round_fpu64 \
+	fpu_branches
 
 AM_CFLAGS    += @FLAG_M32@
 AM_CXXFLAGS  += @FLAG_M32@
@@ -58,3 +64,6 @@ AM_CCASFLAGS += @FLAG_M32@
 
 allexec_CFLAGS          = $(AM_CFLAGS) @FLAG_W_NO_NONNULL@
 bug320057_mips32_LDFLAGS = -lrt
+
+# C++ tests
+test_math_SOURCES          = test_math.cpp
