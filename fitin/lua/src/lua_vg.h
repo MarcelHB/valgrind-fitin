@@ -18,11 +18,13 @@
 #include "pub_tool_libcproc.h"
 #include "pub_tool_libcsetjmp.h"
 #include "pub_tool_mallocfree.h"
+/* strerror */
+#include "coregrind/pub_core_syscall.h"
 
 #define LUA_VG_NUM      Long
 #define LUA_VG_UNSIGNED ULong
 
-/* `lua_print` wraps Lua's print messages which will only appear
+/* `lua_print' wraps Lua's print messages which will only appear
  * verbose mode.
  */
 extern void lua_print(const char*, ...);
@@ -47,8 +49,9 @@ extern const void* vg_memchr(const void*, int, size_t);
 #define strspn(s,a) VG_(strspn)((HChar*)s, (HChar*)a)
 #define strstr(s1,s2) VG_(strstr)((HChar*) s1, (HChar*) s2)
 #define strtod(c,e) VG_(strtod)((HChar*) c, (HChar**) e)
-extern char* vg_strerror(int);
-#define strerror(n) vg_strerror(n)
+/*extern char* vg_strerror(int);
+#define strerror(n) vg_strerror(n) */
+#define strerror(n) VG_(strerror)(n)
 
 /* Jump functions, used by Lua's `throw`. */
 #define longjmp(e,v) VG_MINIMAL_LONGJMP((ULong*) e)
@@ -67,7 +70,7 @@ extern char* vg_setlocale(int, const char*);
  *
  * There is no way to get the system time from Valgrind's library - without
  * calling system() - we redefine the time-calls to work on relative values:
- * The time since starting the process in ms. 
+ * The time since starting the process in ms.
  *
  * So time_t and struct tm continue to hold all values. For struct tm, we
  * ignore the underlying structure, relying on just having enough space to
@@ -101,6 +104,7 @@ extern int* __errno_location(void);
 #define exit(c) VG_(exit)(c)
 #define getenv(s) VG_(getenv)((HChar*) s)
 #define system(c) VG_(system)((HChar*) c)
+#define abort() VG_(exit)(1)
 
 /* Math functions
  *
