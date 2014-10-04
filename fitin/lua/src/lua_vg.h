@@ -100,6 +100,11 @@ extern time_t vg_time(time_t*);
  */
 extern int* __errno_location(void);
 
+/* Under Mac/clang, `errno' seems to try to call a function not being linked
+ * under Valgrind. Lets attempt this then. */
+#undef errno
+#define errno 0
+
 /* System functions. */
 #define exit(c) VG_(exit)(c)
 #define getenv(s) VG_(getenv)((HChar*) s)
