@@ -32,12 +32,12 @@ char a[2] = { 'a', 'b' };
 
 int main() {
     FITIN_MONITOR_VARIABLE(a);
-		char b = 'c';
+    char b = 'c';
     FITIN_MONITOR_VARIABLE(b);
-		a[0] += 1;
-		b += 1;
+    a[0] += 1;
+    b += 1;
 
-		printf("%c %c\n", a[1], b);
+    printf("%c %c\n", a[1], b);
 
     return 0;
 }
